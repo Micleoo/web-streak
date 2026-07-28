@@ -1,49 +1,157 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Flame, Check, Plus, Trophy, User } from 'lucide-react';
 import Navbar from '../components/Navbar';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import './Dashboard.css';
 
 interface Quest {
   id: string;
-  title: string;
-  completed: boolean;
+  name: string;
+}
+
+interface LeaderboardUser {
+  id: string;
+  username: string;
+  current_streak: number;
+  total_xp: number;
 }
 
 const Dashboard = () => {
-  const [quests, setQuests] = useState<Quest[]>([
-    { id: '1', title: 'Belajar React 30 Menit', completed: false },
-    { id: '2', title: 'Workout Pagi', completed: false },
-  ]);
+  const { user, profile, loading: authLoading, refreshProfile } = useAuth();
+  
+  const [quests, setQuests] = useState<Quest[]>([]);
+  const [completedQuestIds, setCompletedQuestIds] = useState<Set<string>>(new Set());
   const [newQuest, setNewQuest] = useState('');
   
-  const [streak, setStreak] = useState(14);
-  const [xp, setXp] = useState(84320);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleAddQuest = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newQuest.trim()) return;
-    setQuests([...quests, { id: Date.now().toString(), title: newQuest, completed: false }]);
-    setNewQuest('');
+  useEffect(() => {
+    if (user) {
+      fetchData();
+    }
+  }, [user]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    
+    // 1. Fetch user's quests
+    const { data: questsData } = await supabase
+      .from('quests')
+      .select('*')
+      .eq('user_id', user!.id)
+      .order('created_at', { ascending: true });
+      
+    if (questsData) {
+      setQuests(questsData);
+    }
+
+    // 2. Fetch completions for today to mark them as completed in UI
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const { data: completionsData } = await supabase
+      .from('quest_completions')
+      .select('quest_id')
+      .eq('user_id', user!.id)
+      .gte('completed_at', today.toISOString());
+      
+    if (completionsData) {
+      const completedIds = new Set(completionsData.map(c => c.quest_id));
+      setCompletedQuestIds(completedIds);
+    }
+
+    // 3. Fetch leaderboard (Top 10 users globally for now)
+    const { data: leaderData } = await supabase
+      .from('users')
+      .select('id, username, current_streak, total_xp')
+      .not('username', 'is', null)
+      .order('current_streak', { ascending: false })
+      .order('total_xp', { ascending: false })
+      .limit(10);
+      
+    if (leaderData) {
+      setLeaderboard(leaderData);
+    }
+    
+    setLoading(false);
   };
 
-  const handleCheckQuest = (id: string) => {
-    // Simple logic to increment streak if it's the first quest of the day
-    const hasCompletedQuest = quests.some(q => q.completed);
+  const handleAddQuest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newQuest.trim() || !user) return;
     
-    setQuests(quests.map(q => q.id === id ? { ...q, completed: true } : q));
-    setXp(prev => prev + 10);
-    
-    if (!hasCompletedQuest) {
-      setStreak(prev => prev + 1);
+    const { data, error } = await supabase
+      .from('quests')
+      .insert({ name: newQuest, user_id: user.id })
+      .select()
+      .single();
+      
+    if (!error && data) {
+      setQuests([...quests, data]);
+      setNewQuest('');
     }
   };
 
-  // Mock Friends Leaderboard
-  const friends = [
-    { id: '2', name: 'Sophia Chen', streak: 16, xp: 85500, isMe: false },
-    { id: '1', name: 'Kamu (Alex)', streak: streak, xp: xp, isMe: true },
-    { id: '3', name: 'Marcus Lee', streak: 12, xp: 72100, isMe: false },
-  ].sort((a, b) => b.streak - a.streak);
+  const handleCheckQuest = async (questId: string) => {
+    if (completedQuestIds.has(questId) || !user || !profile) return;
+    
+    // Optimistic UI update
+    const newCompleted = new Set(completedQuestIds);
+    newCompleted.add(questId);
+    setCompletedQuestIds(newCompleted);
+
+    // 1. Insert completion log
+    const { error } = await supabase
+      .from('quest_completions')
+      .insert({ quest_id: questId, user_id: user.id });
+      
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    // 2. Update user profile (XP and Streak)
+    // We increment XP by 10
+    let newXp = profile.total_xp + 10;
+    let newStreak = profile.current_streak;
+    
+    // If it's the first quest of the day, increment streak
+    // In a real robust app, this is better handled by a Postgres Trigger or Edge Function
+    if (completedQuestIds.size === 0) {
+      newStreak += 1;
+    }
+    
+    await supabase
+      .from('users')
+      .update({ total_xp: newXp, current_streak: newStreak, last_quest_completed_at: new Date().toISOString() })
+      .eq('id', user.id);
+      
+    // 3. Refresh profile and leaderboard
+    await refreshProfile();
+    fetchData(); // reload leaderboard
+  };
+
+  if (authLoading || (loading && user)) {
+    return (
+      <div className="dashboard-page">
+        <Navbar />
+        <div style={{padding: '100px', textAlign: 'center'}}>Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user || !profile) {
+    return (
+      <div className="dashboard-page">
+        <Navbar />
+        <div style={{padding: '100px', textAlign: 'center'}}>
+          Please <a href="/login" style={{color: 'var(--primary-color)'}}>login</a> to view your dashboard.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-page">
@@ -53,8 +161,8 @@ const Dashboard = () => {
         {/* Left Column: Quests */}
         <div className="dashboard-main">
           <header className="dashboard-header">
-            <h1 className="dashboard-title">Good Morning, Alex!</h1>
-            <p className="dashboard-subtitle">Kamu punya {quests.filter(q => !q.completed).length} quest tersisa hari ini.</p>
+            <h1 className="dashboard-title">Good Morning, {profile.username}!</h1>
+            <p className="dashboard-subtitle">Kamu punya {quests.length - completedQuestIds.size} quest tersisa hari ini.</p>
           </header>
 
           <section className="quest-section">
@@ -76,21 +184,24 @@ const Dashboard = () => {
             </form>
 
             <div className="quest-list">
-              {quests.map(quest => (
-                <div key={quest.id} className={`quest-card glass-panel ${quest.completed ? 'completed' : ''}`}>
-                  <div className="quest-content">
-                    <h3>{quest.title}</h3>
-                    <p className="xp-reward">+10 XP</p>
+              {quests.map(quest => {
+                const isCompleted = completedQuestIds.has(quest.id);
+                return (
+                  <div key={quest.id} className={`quest-card glass-panel ${isCompleted ? 'completed' : ''}`}>
+                    <div className="quest-content">
+                      <h3>{quest.name}</h3>
+                      <p className="xp-reward">+10 XP</p>
+                    </div>
+                    <button 
+                      className={`quest-check-btn ${isCompleted ? 'is-completed' : ''}`}
+                      onClick={() => handleCheckQuest(quest.id)}
+                      disabled={isCompleted}
+                    >
+                      {isCompleted ? <Check size={20} /> : null}
+                    </button>
                   </div>
-                  <button 
-                    className={`quest-check-btn ${quest.completed ? 'is-completed' : ''}`}
-                    onClick={() => handleCheckQuest(quest.id)}
-                    disabled={quest.completed}
-                  >
-                    {quest.completed ? <Check size={20} /> : null}
-                  </button>
-                </div>
-              ))}
+                );
+              })}
               {quests.length === 0 && (
                 <div className="empty-state">Belum ada quest. Tambahkan sekarang!</div>
               )}
@@ -106,33 +217,36 @@ const Dashboard = () => {
             <div className="streak-display">
               <div className="fire-icon-wrapper animate-pulse-glow">
                 <Flame size={64} className="fire-icon" />
-                <span className="streak-number">{streak}</span>
+                <span className="streak-number">{profile.current_streak}</span>
               </div>
-              <p className="streak-label">{streak}-Day Streak!</p>
+              <p className="streak-label">{profile.current_streak}-Day Streak!</p>
+            </div>
+            <div style={{color: 'var(--text-secondary)'}}>
+              Total XP: <strong style={{color: 'var(--primary-color)'}}>{profile.total_xp}</strong>
             </div>
           </div>
 
           {/* Friends Leaderboard Card */}
           <div className="leaderboard-card glass-panel">
             <div className="leaderboard-header">
-              <h3 className="sidebar-title">FRIENDS LEADERBOARD</h3>
+              <h3 className="sidebar-title">GLOBAL LEADERBOARD</h3>
               <Trophy size={18} className="text-gradient" />
             </div>
             
             <div className="leaderboard-list">
-              {friends.map((friend, index) => (
-                <div key={friend.id} className={`leaderboard-item ${friend.isMe ? 'is-me' : ''}`}>
+              {leaderboard.map((leader, index) => (
+                <div key={leader.id} className={`leaderboard-item ${leader.id === user.id ? 'is-me' : ''}`}>
                   <div className="rank">#{index + 1}</div>
                   <div className="friend-avatar">
                     <User size={16} />
                   </div>
                   <div className="friend-info">
-                    <h4>{friend.name}</h4>
-                    <span>{friend.xp.toLocaleString()} XP</span>
+                    <h4>{leader.username}</h4>
+                    <span>{leader.total_xp.toLocaleString()} XP</span>
                   </div>
                   <div className="friend-streak">
                     <Flame size={14} className="text-gradient" />
-                    <span>{friend.streak}</span>
+                    <span>{leader.current_streak}</span>
                   </div>
                 </div>
               ))}
