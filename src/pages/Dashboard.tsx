@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Flame, Check, Plus, Trophy, User, Trash2, Code, Dumbbell, BookOpen, Gamepad2, Users, Home, Target } from 'lucide-react';
+import { Flame, Check, Plus, Trophy, User, Trash2, Code, Dumbbell, BookOpen, Gamepad2, Users, Home, Target, Search, X, UserPlus } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
 import './Dashboard.css';
 
 interface Quest {
@@ -44,7 +43,16 @@ const Dashboard = () => {
   
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [activeTab, setActiveTab] = useState<'global' | 'friends'>('global');
+  
+  // Friends State
+  const [friendsLeaderboard, setFriendsLeaderboard] = useState<LeaderboardUser[]>([]);
+  const [showFriendsModal, setShowFriendsModal] = useState(false);
+  const [friendSearchQuery, setFriendSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [friendRequests, setFriendRequests] = useState<any[]>([]);
+
   
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -66,63 +74,81 @@ const Dashboard = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    
-    // 1. Fetch user's quests
-    const { data: questsData } = await supabase
-      .from('quests')
-      .select('*')
-      .eq('user_id', user!.id)
-      .order('created_at', { ascending: true });
+    try {
+      const [questsRes, leaderboardRes, friendsRes, requestsRes] = await Promise.all([
+        fetch('/api/quests').then(r => r.json()),
+        fetch('/api/leaderboard').then(r => r.json()),
+        fetch('/api/leaderboard?tab=friends').then(r => r.json()),
+        fetch('/api/friends/requests').then(r => r.json())
+      ]);
       
-    if (questsData) {
-      setQuests(questsData);
+      if (questsRes.quests) setQuests(questsRes.quests);
+      if (questsRes.completedIds) setCompletedQuestIds(new Set(questsRes.completedIds));
+      if (Array.isArray(leaderboardRes)) setLeaderboard(leaderboardRes);
+      if (Array.isArray(friendsRes)) setFriendsLeaderboard(friendsRes);
+      if (Array.isArray(requestsRes)) setFriendRequests(requestsRes);
+    } catch (e) {
+      console.error(e);
     }
-
-    // 2. Fetch completions for today to mark them as completed in UI
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const { data: completionsData } = await supabase
-      .from('quest_completions')
-      .select('quest_id')
-      .eq('user_id', user!.id)
-      .gte('completed_at', today.toISOString());
-      
-    if (completionsData) {
-      const completedIds = new Set(completionsData.map(c => c.quest_id));
-      setCompletedQuestIds(completedIds);
-    }
-
-    // 3. Fetch leaderboard (Top 10 users globally for now)
-    const { data: leaderData } = await supabase
-      .from('users')
-      .select('id, username, current_streak, total_xp')
-      .not('username', 'is', null)
-      .order('current_streak', { ascending: false })
-      .order('total_xp', { ascending: false })
-      .limit(10);
-      
-    if (leaderData) {
-      setLeaderboard(leaderData);
-    }
-    
     setLoading(false);
   };
+
+  const handleSearchFriends = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (friendSearchQuery.length < 3) return;
+    try {
+      const res = await fetch(`/api/friends/search?q=${friendSearchQuery}`);
+      const data = await res.json();
+      setSearchResults(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSendRequest = async (friendId: string) => {
+    try {
+      await fetch('/api/friends/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ friendId })
+      });
+      alert('Permintaan pertemanan terkirim!');
+      setSearchResults(searchResults.filter((u: any) => u.id !== friendId));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleRespondRequest = async (requestId: string, action: 'accept' | 'reject') => {
+    try {
+      await fetch('/api/friends/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, action })
+      });
+      fetchData();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
 
   const handleAddQuest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newQuest.trim() || !user) return;
     
-    const { data, error } = await supabase
-      .from('quests')
-      .insert({ name: newQuest, category: newQuestCategory, user_id: user.id })
-      .select()
-      .single();
-      
-    if (!error && data) {
-      setQuests([...quests, data]);
-      setNewQuest('');
-    }
+    try {
+      const res = await fetch('/api/quests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newQuest, category: newQuestCategory })
+      });
+      const data = await res.json();
+      if (data && !data.error) {
+        setQuests([...quests, data]);
+        setNewQuest('');
+      }
+    } catch(e) { console.error(e) }
   };
   
   const handleDeleteQuest = async (questId: string) => {
@@ -131,15 +157,12 @@ const Dashboard = () => {
     // Optimistic UI update
     setQuests(quests.filter(q => q.id !== questId));
     
-    const { error } = await supabase
-      .from('quests')
-      .delete()
-      .eq('id', questId)
-      .eq('user_id', user!.id);
-      
-    if (error) {
-      console.error(error);
-      fetchData(); // revert if error
+    try {
+      const res = await fetch(`/api/quests/${questId}`, { method: 'DELETE' });
+      if (!res.ok) fetchData(); // revert if error
+    } catch (e) {
+      console.error(e);
+      fetchData();
     }
   };
 
@@ -151,35 +174,19 @@ const Dashboard = () => {
     newCompleted.add(questId);
     setCompletedQuestIds(newCompleted);
 
-    // 1. Insert completion log
-    const { error } = await supabase
-      .from('quest_completions')
-      .insert({ quest_id: questId, user_id: user.id });
-      
-    if (error) {
-      console.error(error);
-      return;
+    try {
+      const res = await fetch(`/api/quests/${questId}/check`, { method: 'POST' });
+      const data = await res.json();
+      if (data.error) {
+         fetchData();
+         return;
+      }
+      await refreshProfile();
+      fetchData(); // reload leaderboard
+    } catch (e) {
+      console.error(e);
+      fetchData();
     }
-
-    // 2. Update user profile (XP and Streak)
-    // We increment XP by 10
-    let newXp = profile.total_xp + 10;
-    let newStreak = profile.current_streak;
-    
-    // If it's the first quest of the day, increment streak
-    // In a real robust app, this is better handled by a Postgres Trigger or Edge Function
-    if (completedQuestIds.size === 0) {
-      newStreak += 1;
-    }
-    
-    await supabase
-      .from('users')
-      .update({ total_xp: newXp, current_streak: newStreak, last_quest_completed_at: new Date().toISOString() })
-      .eq('id', user.id);
-      
-    // 3. Refresh profile and leaderboard
-    await refreshProfile();
-    fetchData(); // reload leaderboard
   };
 
   const getCategoryIcon = (catId?: string) => {
@@ -220,7 +227,7 @@ const Dashboard = () => {
         {/* Left Column: Quests */}
         <div className="dashboard-main">
           <header className="dashboard-header">
-            <h1 className="dashboard-title">{greeting}, {profile.username}!</h1>
+            <h1 className="dashboard-title">{greeting}, {profile.name || 'User'}!</h1>
             <p className="dashboard-subtitle">{motivation} Kamu punya {quests.length - completedQuestIds.size} quest tersisa hari ini.</p>
           </header>
 
@@ -325,9 +332,19 @@ const Dashboard = () => {
         <div className="dashboard-sidebar">
           {/* Leaderboard Card */}
           <div className="leaderboard-card glass-panel">
-            <div className="leaderboard-header">
-              <h3 className="sidebar-title">LEADERBOARD</h3>
-              <Trophy size={18} className="text-gradient" />
+            <div className="leaderboard-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+              <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                <h3 className="sidebar-title">LEADERBOARD</h3>
+                <Trophy size={18} className="text-gradient" />
+              </div>
+              <button 
+                className="btn btn-primary" 
+                style={{padding: '4px 10px', fontSize: '12px'}}
+                onClick={() => setShowFriendsModal(true)}
+              >
+                <UserPlus size={14} style={{marginRight: '4px', display: 'inline-block'}} /> Friends
+                {friendRequests.length > 0 && <span style={{background: 'red', color: 'white', borderRadius: '50%', padding: '2px 6px', marginLeft: '4px'}}>{friendRequests.length}</span>}
+              </button>
             </div>
             
             <div className="leaderboard-tabs">
@@ -346,33 +363,110 @@ const Dashboard = () => {
             </div>
             
             <div className="leaderboard-list">
-              {activeTab === 'global' ? (
-                leaderboard.map((leader, index) => (
-                  <div key={leader.id} className={`leaderboard-item ${leader.id === user.id ? 'is-me' : ''}`}>
-                    <div className="rank">#{index + 1}</div>
-                    <div className="friend-avatar">
-                      <User size={16} />
-                    </div>
-                    <div className="friend-info">
-                      <h4>{leader.username}</h4>
-                      <span>{leader.total_xp.toLocaleString()} XP</span>
-                    </div>
-                    <div className="friend-streak">
-                      <Flame size={14} className="text-gradient" />
-                      <span>{leader.current_streak}</span>
-                    </div>
+              {(activeTab === 'global' ? leaderboard : friendsLeaderboard).map((leader, index) => (
+                <div key={leader.id} className={`leaderboard-item ${leader.id === user.id ? 'is-me' : ''}`}>
+                  <div className="rank">#{index + 1}</div>
+                  <div className="friend-avatar">
+                    <User size={16} />
                   </div>
-                ))
-              ) : (
-                <div className="empty-friends">
+                  <div className="friend-info">
+                    <h4>{leader.name || 'User'}</h4>
+                    <span>{leader.totalXp.toLocaleString()} XP</span>
+                  </div>
+                  <div className="friend-streak">
+                    <Flame size={14} className="text-gradient" />
+                    <span>{leader.currentStreak}</span>
+                  </div>
+                </div>
+              ))}
+              {activeTab === 'friends' && friendsLeaderboard.length === 1 && (
+                <div className="empty-friends" style={{marginTop: '20px'}}>
                   <Users size={32} color="var(--text-muted)" style={{marginBottom: '1rem'}} />
-                  <p>Fitur Friends sedang dalam pengembangan. Segera hadir!</p>
+                  <p>Kamu belum memiliki teman. Klik tombol Friends di atas untuk mencari teman!</p>
                 </div>
               )}
             </div>
           </div>
         </div>
+
       </main>
+
+      {/* Friends Modal */}
+      {showFriendsModal && (
+        <div className="modal-overlay" onClick={() => setShowFriendsModal(false)}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Manage Friends</h2>
+              <button className="icon-btn" onClick={() => setShowFriendsModal(false)}><X size={24} /></button>
+            </div>
+            
+            <div className="modal-body">
+              {/* Friend Requests */}
+              {friendRequests.length > 0 && (
+                <div className="friend-requests-section">
+                  <h3>Friend Requests ({friendRequests.length})</h3>
+                  <div className="request-list">
+                    {friendRequests.map((req: any) => (
+                      <div key={req.requestId} className="request-item">
+                        <div className="request-info">
+                          <User size={32} style={{background: 'var(--bg-card)', padding: '6px', borderRadius: '50%'}}/>
+                          <span><strong>{req.name}</strong> wants to be your friend</span>
+                        </div>
+                        <div className="request-actions">
+                          <button className="btn btn-primary" style={{padding: '6px 12px', background: 'var(--success-color)'}} onClick={() => handleRespondRequest(req.requestId, 'accept')}>
+                            Terima
+                          </button>
+                          <button className="btn" style={{padding: '6px 12px', background: 'var(--bg-card)'}} onClick={() => handleRespondRequest(req.requestId, 'reject')}>
+                            Tolak
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Search Friends */}
+              <div className="search-friends-section" style={{marginTop: friendRequests.length > 0 ? '24px' : '0'}}>
+                <h3>Cari Teman Baru</h3>
+                <form onSubmit={handleSearchFriends} className="search-form">
+                  <div className="search-input-wrapper" style={{display: 'flex', gap: '8px', marginTop: '12px'}}>
+                    <input 
+                      type="text" 
+                      placeholder="Cari berdasarkan username..." 
+                      className="quest-input"
+                      value={friendSearchQuery}
+                      onChange={(e) => setFriendSearchQuery(e.target.value)}
+                      style={{flex: 1}}
+                    />
+                    <button type="submit" className="btn btn-primary" style={{padding: '0 16px'}}><Search size={18} /></button>
+                  </div>
+                </form>
+                
+                <div className="search-results" style={{marginTop: '16px'}}>
+                  {searchResults.map((result: any) => (
+                    <div key={result.id} className="search-result-item" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'var(--bg-card)', borderRadius: '8px', marginBottom: '8px'}}>
+                      <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+                        <User size={20} />
+                        <div>
+                          <h4 style={{margin: 0}}>{result.name}</h4>
+                          <span style={{fontSize: '12px', color: 'var(--text-muted)'}}>{result.totalXp} XP</span>
+                        </div>
+                      </div>
+                      <button className="btn btn-primary" style={{padding: '6px 12px', fontSize: '12px'}} onClick={() => handleSendRequest(result.id)}>
+                        Add Friend
+                      </button>
+                    </div>
+                  ))}
+                  {searchResults.length === 0 && friendSearchQuery.length >= 3 && (
+                     <p style={{textAlign: 'center', color: 'var(--text-muted)', marginTop: '16px'}}>Gunakan tombol cari setelah mengetik username minimal 3 karakter.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

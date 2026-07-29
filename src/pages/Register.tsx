@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { authClient } from '../lib/auth-client';
 import Navbar from '../components/Navbar';
 import { Target } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -34,22 +34,17 @@ const Register = () => {
       return;
     }
 
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { error: signUpError } = await authClient.signUp.email({
       email,
       password,
-      options: {
-        data: {
-          username: username
-        }
-      }
+      name: username
     });
 
     if (signUpError) {
       setError(signUpError.message);
       setLoading(false);
     } else {
-      // Typically we might want them to confirm email, but for prototyping we just redirect to login or dashboard
-      navigate('/login');
+      navigate('/dashboard');
     }
   };
 

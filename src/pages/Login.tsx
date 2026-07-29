@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { authClient } from '../lib/auth-client';
 import Navbar from '../components/Navbar';
 import { Flame } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -26,7 +26,7 @@ const Login = () => {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await authClient.signIn.email({
       email,
       password,
     });
