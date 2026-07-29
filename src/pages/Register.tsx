@@ -40,7 +40,6 @@ const Register = () => {
       setLoading(false);
     } else {
       // Typically we might want them to confirm email, but for prototyping we just redirect to login or dashboard
-      alert('Registration successful! Please login.');
       navigate('/login');
     }
   };
