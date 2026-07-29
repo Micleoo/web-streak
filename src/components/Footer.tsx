@@ -16,15 +16,15 @@ const Footer: React.FC = () => {
         <div className="footer-links">
           <div className="footer-column">
             <h4>Product</h4>
-            <a href="#">Features</a>
-            <a href="#">Leaderboard</a>
-            <a href="#">Quests</a>
+            <a href="/#how-it-works">Features</a>
+            <a href="/dashboard">Leaderboard</a>
+            <a href="/dashboard">Quests</a>
           </div>
           <div className="footer-column">
             <h4>Support</h4>
-            <a href="#">FAQ</a>
-            <a href="#">Contact</a>
-            <a href="#">Privacy</a>
+            <a href="/">FAQ</a>
+            <a href="/">Contact</a>
+            <a href="/">Privacy</a>
           </div>
         </div>
       </div>
