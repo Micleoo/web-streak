@@ -4,7 +4,7 @@ import { cors } from 'hono/cors';
 import { auth } from './auth';
 import { db } from './db';
 import { quests, questCompletions, user, friends } from './db/schema';
-import { eq, desc, and, gte, ilike, or, inArray } from 'drizzle-orm';
+import { eq, desc, and, gte, ilike, or, inArray, gt, lt, isNull } from 'drizzle-orm';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -126,17 +126,42 @@ app.post('/api/quests/:id/check', requireAuth, async (c) => {
     return c.json({ error: 'Already completed today' }, 400);
   }
   
-  // 2. Insert completion log
+  // 2. Fetch User Data to check API slots
+  const [userData] = await db.select().from(user).where(eq(user.id, session.user.id));
+  
+  if (userData.regularApi <= 0 && userData.bonusApi <= 0) {
+    return c.json({ error: 'No API slots remaining today' }, 400);
+  }
+
+  let regularApi = userData.regularApi;
+  let bonusApi = userData.bonusApi;
+  if (regularApi > 0) {
+    regularApi -= 1;
+  } else {
+    bonusApi -= 1;
+  }
+
+  // 3. Insert completion log
   await db.insert(questCompletions).values({
     questId: id,
     userId: session.user.id,
   });
   
-  // 3. Update User XP and Streak
-  const [userData] = await db.select().from(user).where(eq(user.id, session.user.id));
-  
+  // 4. Update User XP and Streak
   let newXp = (userData.totalXp || 0) + 10;
   let newStreak = userData.currentStreak || 0;
+  let maxStreak = userData.maxStreak || 0;
+  let streakAtRisk = userData.streakAtRisk;
+  let gracePeriodUntil = userData.gracePeriodUntil;
+  let message = 'Quest completed! +10 XP';
+
+  if (streakAtRisk) {
+    // Restore streak!
+    newXp += 20; // +10 base + 20 restore = 30 total added
+    streakAtRisk = false;
+    gracePeriodUntil = null;
+    message = 'Streak restored! +30 XP';
+  }
   
   // Check if this is the first quest of the day
   const completionsToday = await db
@@ -151,6 +176,16 @@ app.post('/api/quests/:id/check', requireAuth, async (c) => {
     
   if (completionsToday.length === 1) { // includes the one we just inserted
     newStreak += 1;
+    if (newStreak > maxStreak) {
+      maxStreak = newStreak;
+    }
+    
+    // Check 7-day milestone
+    if (newStreak > 0 && newStreak % 7 === 0) {
+      newXp += 50;
+      bonusApi += 3;
+      message += ' 🎉 7-Day Milestone! +50 XP & +3 Bonus API';
+    }
   }
   
   const [updatedUser] = await db
@@ -158,12 +193,17 @@ app.post('/api/quests/:id/check', requireAuth, async (c) => {
     .set({
       totalXp: newXp,
       currentStreak: newStreak,
+      maxStreak: maxStreak,
+      regularApi,
+      bonusApi,
+      streakAtRisk,
+      gracePeriodUntil,
       lastQuestCompletedAt: new Date(),
     })
     .where(eq(user.id, session.user.id))
     .returning();
     
-  return c.json({ success: true, user: updatedUser });
+  return c.json({ success: true, user: updatedUser, message });
 });
 
 // --- LEADERBOARD API ---
@@ -334,6 +374,44 @@ app.post('/api/friends/respond', requireAuth, async (c) => {
   }
   
   return c.json({ success: true });
+});
+
+// --- CRON JOBS ---
+app.post('/api/cron/daily', async (c) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // 1. Reset regular API for all users
+  await db.update(user).set({ regularApi: 3, lastApiResetAt: new Date() });
+
+  // 2. Users who haven't completed a quest yesterday or earlier -> streak at risk
+  await db.update(user).set({
+    streakAtRisk: true,
+    gracePeriodUntil: new Date(Date.now() + 48 * 60 * 60 * 1000) // 48 hours from now
+  }).where(
+    and(
+      gt(user.currentStreak, 0),
+      eq(user.streakAtRisk, false),
+      or(
+        isNull(user.lastQuestCompletedAt),
+        lt(user.lastQuestCompletedAt, today)
+      )
+    )
+  );
+
+  // 3. Reset streak for users whose grace period has expired
+  await db.update(user).set({
+    currentStreak: 0,
+    streakAtRisk: false,
+    gracePeriodUntil: null
+  }).where(
+    and(
+      eq(user.streakAtRisk, true),
+      lt(user.gracePeriodUntil, new Date())
+    )
+  );
+
+  return c.json({ success: true, message: 'Daily reset complete' });
 });
 
 app.get('/', (c) => c.text('Streak API is running!'));

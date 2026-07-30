@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Flame, Check, Plus, Trophy, User, Trash2, Code, Dumbbell, BookOpen, Gamepad2, Users, Home, Target, Search, X, UserPlus } from 'lucide-react';
+import { Flame, Check, Plus, Trophy, User, Trash2, Code, Dumbbell, BookOpen, Gamepad2, Users, Home, Target, Search, X, UserPlus, Zap, AlertTriangle } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../contexts/AuthContext';
 import './Dashboard.css';
@@ -168,7 +168,11 @@ const Dashboard = () => {
 
   const handleCheckQuest = async (questId: string) => {
     if (completedQuestIds.has(questId) || !user || !profile) return;
-    
+    if (profile.regularApi + profile.bonusApi <= 0) {
+      alert("API Limit Reached! Kamu kehabisan API slots hari ini.");
+      return;
+    }
+
     // Optimistic UI update
     const newCompleted = new Set(completedQuestIds);
     newCompleted.add(questId);
@@ -231,10 +235,22 @@ const Dashboard = () => {
             <p className="dashboard-subtitle">{motivation} Kamu punya {quests.length - completedQuestIds.size} quest tersisa hari ini.</p>
           </header>
 
+          {profile.streakAtRisk && (
+            <div className="grace-period-banner">
+              <AlertTriangle size={20} className="warning-icon" />
+              <div className="banner-text">
+                <strong>API kamu padam!</strong>
+                <p>Selesaikan minimal 1 quest sebelum {new Date(profile.gracePeriodUntil!).toLocaleDateString()} {new Date(profile.gracePeriodUntil!).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} untuk memulihkan streak.</p>
+              </div>
+            </div>
+          )}
+
           {/* Stats Grid */}
           <div className="stats-grid">
-            <div className="stat-card glass-panel">
-              <div className="stat-icon orange"><Flame size={20} /></div>
+            <div className={`stat-card glass-panel ${profile.streakAtRisk ? 'at-risk' : ''} ${profile.currentStreak >= 3 ? 'active-streak' : ''}`}>
+              <div className={`stat-icon ${profile.streakAtRisk ? 'gray' : (profile.currentStreak >= 3 ? 'orange pulse' : 'gray')}`}>
+                <Flame size={20} />
+              </div>
               <div className="stat-value">{profile.currentStreak}</div>
               <div className="stat-label">Day Streak</div>
             </div>
@@ -249,9 +265,9 @@ const Dashboard = () => {
               <div className="stat-label">Total XP</div>
             </div>
             <div className="stat-card glass-panel">
-              <div className="stat-icon green"><Target size={20} /></div>
-              <div className="stat-value">{quests.length}</div>
-              <div className="stat-label">Total Quests</div>
+              <div className="stat-icon green"><Zap size={20} /></div>
+              <div className="stat-value">{profile.regularApi + profile.bonusApi}</div>
+              <div className="stat-label">API Slots</div>
             </div>
           </div>
 

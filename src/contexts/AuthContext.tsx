@@ -6,7 +6,12 @@ export interface UserProfile {
   name: string;
   email: string;
   currentStreak: number;
+  maxStreak: number;
   totalXp: number;
+  regularApi: number;
+  bonusApi: number;
+  streakAtRisk: boolean;
+  gracePeriodUntil: string | null;
 }
 
 interface AuthContextType {
@@ -48,7 +53,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     name: user.name,
     email: user.email,
     currentStreak: user.currentStreak || 0,
+    maxStreak: user.maxStreak || 0,
     totalXp: user.totalXp || 0,
+    regularApi: user.regularApi ?? 3,
+    bonusApi: user.bonusApi ?? 0,
+    streakAtRisk: user.streakAtRisk || false,
+    gracePeriodUntil: user.gracePeriodUntil || null,
   } : null;
 
   return (

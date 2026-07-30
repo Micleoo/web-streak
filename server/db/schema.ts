@@ -11,8 +11,16 @@ export const user = pgTable("user", {
   
   // Custom fields for Streak App
   currentStreak: integer("currentStreak").default(0).notNull(),
+  maxStreak: integer("maxStreak").default(0).notNull(),
   totalXp: integer("totalXp").default(0).notNull(),
   lastQuestCompletedAt: timestamp("lastQuestCompletedAt"),
+  
+  // Gamification fields
+  regularApi: integer("regularApi").default(3).notNull(),
+  bonusApi: integer("bonusApi").default(0).notNull(),
+  lastApiResetAt: timestamp("lastApiResetAt"),
+  streakAtRisk: boolean("streakAtRisk").default(false).notNull(),
+  gracePeriodUntil: timestamp("gracePeriodUntil"),
 });
 
 export const session = pgTable("session", {
