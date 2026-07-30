@@ -42,7 +42,9 @@ const Navbar: React.FC = () => {
           {session ? (
             <>
               <Link to="/dashboard" className="nav-link" onClick={closeMobileMenu}>Dashboard</Link>
-              <div className="nav-profile-name">{profile?.name || 'User'}</div>
+              <Link to="/profile" className="nav-profile-name" onClick={closeMobileMenu}>
+                {profile?.name || 'User'}
+              </Link>
               <button onClick={handleLogout} className="btn nav-cta" style={{backgroundColor: 'rgba(255,255,255,0.1)', color: 'white'}}>
                 <LogOut size={18} />
                 <span>Logout</span>

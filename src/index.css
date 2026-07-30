@@ -157,3 +157,21 @@ button {
 .animate-pulse-glow {
   animation: pulseGlow 2s infinite;
 }
+
+.loading-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 50vh;
+  width: 100%;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+  color: var(--primary-color);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

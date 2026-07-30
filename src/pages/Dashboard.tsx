@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Flame, Check, Plus, Trophy, User, Trash2, Code, Dumbbell, BookOpen, Gamepad2, Users, Home, Target, Search, X, UserPlus, Zap, AlertTriangle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Flame, Check, Plus, Trophy, User, Trash2, Code, Dumbbell, BookOpen, Gamepad2, Users, Home, Target, Search, X, UserPlus, Zap, AlertTriangle, History } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../contexts/AuthContext';
 import './Dashboard.css';
@@ -8,6 +9,7 @@ interface Quest {
   id: string;
   name: string;
   category?: string;
+  estimatedMinutes?: number;
 }
 
 interface LeaderboardUser {
@@ -40,6 +42,12 @@ const Dashboard = () => {
   const [completedQuestIds, setCompletedQuestIds] = useState<Set<string>>(new Set());
   const [newQuest, setNewQuest] = useState('');
   const [newQuestCategory, setNewQuestCategory] = useState('coding');
+  const [newQuestMinutes, setNewQuestMinutes] = useState('');
+  
+  const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
+  const [editQuestName, setEditQuestName] = useState('');
+  const [editQuestCategory, setEditQuestCategory] = useState('coding');
+  const [editQuestMinutes, setEditQuestMinutes] = useState('');
   
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +60,11 @@ const Dashboard = () => {
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [friendRequests, setFriendRequests] = useState<any[]>([]);
-
+  // History State
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyQuest, setHistoryQuest] = useState<Quest | null>(null);
+  const [questHistoryData, setQuestHistoryData] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -66,11 +78,32 @@ const Dashboard = () => {
     return MOTIVATIONS[Math.floor(Math.random() * MOTIVATIONS.length)];
   }, []);
 
+  const navigate = useNavigate();
+
   useEffect(() => {
     if (user) {
-      fetchData();
+      if (profile && !profile.username) {
+        navigate('/onboarding');
+      } else {
+        fetchData();
+        const intervalId = setInterval(fetchLeaderboardsOnly, 60000);
+        return () => clearInterval(intervalId);
+      }
     }
-  }, [user]);
+  }, [user, profile, navigate]);
+
+  const fetchLeaderboardsOnly = async () => {
+    try {
+      const [leaderboardRes, friendsRes] = await Promise.all([
+        fetch('/api/leaderboard').then(r => r.json()),
+        fetch('/api/leaderboard?tab=friends').then(r => r.json())
+      ]);
+      if (Array.isArray(leaderboardRes)) setLeaderboard(leaderboardRes);
+      if (Array.isArray(friendsRes)) setFriendsLeaderboard(friendsRes);
+    } catch(e) {
+      console.error(e);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -99,7 +132,13 @@ const Dashboard = () => {
     try {
       const res = await fetch(`/api/friends/search?q=${friendSearchQuery}`);
       const data = await res.json();
-      setSearchResults(Array.isArray(data) ? data : []);
+      if (Array.isArray(data)) {
+        setSearchResults(data);
+      } else if (data.results) {
+        setSearchResults(data.results);
+      } else {
+        setSearchResults([]);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -141,12 +180,17 @@ const Dashboard = () => {
       const res = await fetch('/api/quests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newQuest, category: newQuestCategory })
+        body: JSON.stringify({ 
+          name: newQuest, 
+          category: newQuestCategory,
+          estimatedMinutes: newQuestMinutes 
+        })
       });
       const data = await res.json();
       if (data && !data.error) {
         setQuests([...quests, data]);
         setNewQuest('');
+        setNewQuestMinutes('');
       }
     } catch(e) { console.error(e) }
   };
@@ -165,6 +209,61 @@ const Dashboard = () => {
       fetchData();
     }
   };
+
+  const handleEditClick = (quest: Quest) => {
+    setEditingQuestId(quest.id);
+    setEditQuestName(quest.name);
+    setEditQuestCategory(quest.category || 'coding');
+    setEditQuestMinutes(quest.estimatedMinutes ? String(quest.estimatedMinutes) : '');
+  };
+
+  const handleViewHistory = async (quest: Quest) => {
+    setHistoryQuest(quest);
+    setShowHistoryModal(true);
+    setLoadingHistory(true);
+    setQuestHistoryData([]);
+    
+    try {
+      const res = await fetch(`/api/quests/${quest.id}/history`);
+      const data = await res.json();
+      setQuestHistoryData(data);
+    } catch(e) {
+      console.error(e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const handleSaveEdit = async (questId: string) => {
+    if (!editQuestName.trim()) return;
+    
+    // Optimistic UI update
+    const originalQuests = [...quests];
+    setQuests(quests.map(q => q.id === questId ? {
+      ...q,
+      name: editQuestName,
+      category: editQuestCategory,
+      estimatedMinutes: editQuestMinutes ? parseInt(editQuestMinutes, 10) : undefined
+    } : q));
+    setEditingQuestId(null);
+    
+    try {
+      const res = await fetch(`/api/quests/${questId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editQuestName,
+          category: editQuestCategory,
+          estimatedMinutes: editQuestMinutes
+        })
+      });
+      if (!res.ok) setQuests(originalQuests); // revert on error
+    } catch (e) {
+      console.error(e);
+      setQuests(originalQuests);
+    }
+  };
+
 
   const handleCheckQuest = async (questId: string) => {
     if (completedQuestIds.has(questId) || !user || !profile) return;
@@ -284,6 +383,15 @@ const Dashboard = () => {
                 onChange={(e) => setNewQuest(e.target.value)}
                 className="quest-input"
               />
+              <input
+                type="number"
+                placeholder="Menit (Opsional)"
+                value={newQuestMinutes}
+                onChange={(e) => setNewQuestMinutes(e.target.value)}
+                className="quest-input minutes-input"
+                min="1"
+                style={{width: '120px'}}
+              />
               <select 
                 value={newQuestCategory}
                 onChange={(e) => setNewQuestCategory(e.target.value)}
@@ -301,6 +409,46 @@ const Dashboard = () => {
             <div className="quest-list">
               {quests.map(quest => {
                 const isCompleted = completedQuestIds.has(quest.id);
+                const isEditing = editingQuestId === quest.id;
+                
+                if (isEditing) {
+                  return (
+                    <div key={quest.id} className="quest-card glass-panel editing">
+                      <div className="edit-quest-form" style={{display: 'flex', gap: '8px', width: '100%', flexWrap: 'wrap'}}>
+                        <input
+                          type="text"
+                          value={editQuestName}
+                          onChange={(e) => setEditQuestName(e.target.value)}
+                          className="quest-input"
+                          style={{flex: '1', minWidth: '150px'}}
+                        />
+                        <input
+                          type="number"
+                          placeholder="Menit"
+                          value={editQuestMinutes}
+                          onChange={(e) => setEditQuestMinutes(e.target.value)}
+                          className="quest-input minutes-input"
+                          min="1"
+                          style={{width: '80px'}}
+                        />
+                        <select 
+                          value={editQuestCategory}
+                          onChange={(e) => setEditQuestCategory(e.target.value)}
+                          className="quest-category-select"
+                        >
+                          {CATEGORIES.map(c => (
+                            <option key={c.id} value={c.id}>{c.label}</option>
+                          ))}
+                        </select>
+                        <div style={{display: 'flex', gap: '4px'}}>
+                          <button onClick={() => handleSaveEdit(quest.id)} className="btn btn-primary" style={{padding: '6px 12px'}}>Simpan</button>
+                          <button onClick={() => setEditingQuestId(null)} className="btn btn-secondary" style={{padding: '6px 12px'}}>Batal</button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
                   <div key={quest.id} className={`quest-card glass-panel ${isCompleted ? 'completed animate-pop' : ''}`}>
                     <div className="quest-content">
@@ -310,10 +458,32 @@ const Dashboard = () => {
                           {getCategoryIcon(quest.category)}
                           {getCategoryLabel(quest.category)}
                         </span>
+                        {quest.estimatedMinutes && (
+                          <span className="quest-minutes-badge" style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '8px', padding: '2px 6px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px'}}>
+                            ⏳ {quest.estimatedMinutes}m
+                          </span>
+                        )}
                       </div>
                       <p className="xp-reward">+10 XP</p>
                     </div>
                     <div className="quest-actions">
+                      <button 
+                        className="quest-edit-btn"
+                        onClick={() => handleEditClick(quest)}
+                        disabled={isCompleted}
+                        title="Edit Quest"
+                        style={{background: 'none', border: 'none', cursor: 'pointer', padding: '8px', color: 'var(--text-secondary)', opacity: isCompleted ? 0.5 : 1}}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                      </button>
+                      <button 
+                        className="quest-edit-btn"
+                        onClick={() => handleViewHistory(quest)}
+                        title="History Quest"
+                        style={{background: 'none', border: 'none', cursor: 'pointer', padding: '8px', color: 'var(--text-secondary)'}}
+                      >
+                        <History size={18} />
+                      </button>
                       <button 
                         className="quest-delete-btn"
                         onClick={() => handleDeleteQuest(quest.id)}
@@ -466,7 +636,7 @@ const Dashboard = () => {
                         <User size={20} />
                         <div>
                           <h4 style={{margin: 0}}>{result.name}</h4>
-                          <span style={{fontSize: '12px', color: 'var(--text-muted)'}}>{result.totalXp} XP</span>
+                          <span style={{fontSize: '12px', color: 'var(--text-muted)'}}>@{result.username || 'user'} · {result.totalXp} XP</span>
                         </div>
                       </div>
                       <button className="btn btn-primary" style={{padding: '6px 12px', fontSize: '12px'}} onClick={() => handleSendRequest(result.id)}>
@@ -479,6 +649,41 @@ const Dashboard = () => {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* History Modal */}
+      {showHistoryModal && historyQuest && (
+        <div className="modal-overlay" onClick={() => setShowHistoryModal(false)}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>History: {historyQuest.name}</h2>
+              <button className="icon-btn" onClick={() => setShowHistoryModal(false)}><X size={24} /></button>
+            </div>
+            <div className="modal-body" style={{maxHeight: '400px', overflowY: 'auto'}}>
+              {loadingHistory ? (
+                <div style={{textAlign: 'center', padding: '20px', color: 'var(--text-muted)'}}>Memuat history...</div>
+              ) : questHistoryData.length === 0 ? (
+                <div style={{textAlign: 'center', padding: '20px', color: 'var(--text-muted)'}}>
+                  Quest ini belum pernah diselesaikan.
+                </div>
+              ) : (
+                <div style={{display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px'}}>
+                  {questHistoryData.map((record: any, idx: number) => (
+                    <div key={record.id} style={{display: 'flex', justifyContent: 'space-between', padding: '12px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)'}}>
+                      <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+                        <Check size={16} color="var(--success-color)" />
+                        <span>Selesai ke-{questHistoryData.length - idx}</span>
+                      </div>
+                      <span style={{color: 'var(--text-muted)', fontSize: '14px'}}>
+                        {new Date(record.completedAt).toLocaleDateString()} {new Date(record.completedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

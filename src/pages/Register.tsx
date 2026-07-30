@@ -9,7 +9,7 @@ import './Auth.css';
 
 const Register = () => {
   const [email, setEmail] = useState('');
-  const [username, setUsername] = useState('');
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,9 +27,8 @@ const Register = () => {
     setLoading(true);
     setError(null);
 
-    // Basic validation
-    if (!username.match(/^[a-zA-Z][a-zA-Z0-9_]{2,19}$/)) {
-      setError('Username must be 3-20 characters long and start with a letter. Only letters, numbers, and underscores are allowed.');
+    if (name.trim().length < 2) {
+      setError('Name must be at least 2 characters long.');
       setLoading(false);
       return;
     }
@@ -37,14 +36,14 @@ const Register = () => {
     const { error: signUpError } = await authClient.signUp.email({
       email,
       password,
-      name: username
+      name: name
     });
 
     if (signUpError) {
       setError(signUpError.message ?? 'Registration failed');
       setLoading(false);
     } else {
-      navigate('/dashboard');
+      navigate('/onboarding');
     }
   };
 
@@ -63,13 +62,13 @@ const Register = () => {
 
           <form onSubmit={handleRegister} className="auth-form">
             <div className="form-group">
-              <label>Username</label>
+              <label>Name</label>
               <input
                 type="text"
                 required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Choose a username"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="What should we call you?"
               />
             </div>
             <div className="form-group">

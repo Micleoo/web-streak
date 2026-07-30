@@ -10,9 +10,12 @@ export const user = pgTable("user", {
   updatedAt: timestamp("updatedAt").notNull(),
   
   // Custom fields for Streak App
+  username: text("username").unique(),
   currentStreak: integer("currentStreak").default(0).notNull(),
   maxStreak: integer("maxStreak").default(0).notNull(),
   totalXp: integer("totalXp").default(0).notNull(),
+  monthlyXp: integer("monthlyXp").default(0).notNull(),
+  favoriteCategories: text("favoriteCategories"), // store as JSON string
   lastQuestCompletedAt: timestamp("lastQuestCompletedAt"),
   
   // Gamification fields
@@ -65,6 +68,7 @@ export const quests = pgTable("quests", {
   userId: text("user_id").notNull().references(() => user.id),
   name: text("name").notNull(),
   category: text("category").default('coding').notNull(),
+  estimatedMinutes: integer("estimatedMinutes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -81,4 +85,11 @@ export const friends = pgTable("friends", {
   friendId: text("friend_id").notNull().references(() => user.id),
   status: text("status").default('pending').notNull(), // 'pending', 'accepted'
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const achievements = pgTable("achievements", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").notNull().references(() => user.id),
+  achievementType: text("achievementType").notNull(),
+  unlockedAt: timestamp("unlockedAt").defaultNow().notNull(),
 });

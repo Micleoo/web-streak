@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { auth } from './auth';
 import { db } from './db';
-import { quests, questCompletions, user, friends } from './db/schema';
+import { quests, questCompletions, user, friends, achievements } from './db/schema';
 import { eq, desc, and, gte, ilike, or, inArray, gt, lt, isNull } from 'drizzle-orm';
 import dotenv from 'dotenv';
 
@@ -36,6 +36,63 @@ const requireAuth = async (c: Context<{ Variables: Variables }>, next: Next) => 
   c.set('session', session);
   await next();
 };
+
+// --- USER API ---
+app.get('/api/me', requireAuth, async (c) => {
+  const session = c.get('session');
+  const [currentUser] = await db
+    .select()
+    .from(user)
+    .where(eq(user.id, session.user.id))
+    .limit(1);
+    
+  return c.json(currentUser);
+});
+
+// --- ONBOARDING API ---
+
+app.get('/api/check-username/:username', async (c) => {
+  const username = c.req.param('username').toLowerCase();
+  
+  if (!/^[a-zA-Z][a-zA-Z0-9_]{2,19}$/.test(username)) {
+    return c.json({ available: false, error: 'Invalid format' }, 400);
+  }
+
+  const existingUser = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(eq(user.username, username))
+    .limit(1);
+
+  return c.json({ available: existingUser.length === 0 });
+});
+
+app.post('/api/onboarding', requireAuth, async (c) => {
+  const session = c.get('session');
+  const body = await c.req.json();
+  const username = body.username?.toLowerCase();
+  
+  if (!/^[a-zA-Z][a-zA-Z0-9_]{2,19}$/.test(username)) {
+    return c.json({ error: 'Format username tidak valid' }, 400);
+  }
+
+  try {
+    await db
+      .update(user)
+      .set({ 
+        username,
+        favoriteCategories: body.favoriteCategories ? JSON.stringify(body.favoriteCategories) : null
+      })
+      .where(eq(user.id, session.user.id));
+      
+    return c.json({ success: true });
+  } catch (e: any) {
+    if (e.code === '23505') { // unique violation
+      return c.json({ error: 'Username sudah digunakan' }, 400);
+    }
+    return c.json({ error: 'Gagal menyimpan data' }, 500);
+  }
+});
 
 // --- QUOTES / QUESTS API ---
 
@@ -84,6 +141,7 @@ app.post('/api/quests', requireAuth, async (c) => {
       userId: session.user.id,
       name: body.name,
       category: body.category || 'coding',
+      estimatedMinutes: body.estimatedMinutes ? parseInt(body.estimatedMinutes, 10) : null,
     })
     .returning();
     
@@ -100,6 +158,52 @@ app.delete('/api/quests/:id', requireAuth, async (c) => {
     .where(and(eq(quests.id, id), eq(quests.userId, session.user.id)));
     
   return c.json({ success: true });
+});
+
+// Edit a quest
+app.put('/api/quests/:id', requireAuth, async (c) => {
+  const session = c.get('session');
+  const id = c.req.param('id') as string;
+  const body = await c.req.json();
+  
+  if (!body.name) {
+    return c.json({ error: 'Name is required' }, 400);
+  }
+  
+  const [updatedQuest] = await db
+    .update(quests)
+    .set({
+      name: body.name,
+      category: body.category || 'coding',
+      estimatedMinutes: body.estimatedMinutes ? parseInt(body.estimatedMinutes, 10) : null,
+    })
+    .where(and(eq(quests.id, id), eq(quests.userId, session.user.id)))
+    .returning();
+    
+  return c.json(updatedQuest);
+});
+
+// Get quest completion history
+app.get('/api/quests/:id/history', requireAuth, async (c) => {
+  const session = c.get('session');
+  const id = c.req.param('id') as string;
+  
+  const history = await db
+    .select({
+      id: questCompletions.id,
+      completedAt: questCompletions.completedAt
+    })
+    .from(questCompletions)
+    .where(
+      and(
+        eq(questCompletions.questId, id),
+        eq(questCompletions.userId, session.user.id)
+      )
+    )
+    .orderBy(desc(questCompletions.completedAt))
+    .limit(30);
+    
+  return c.json(history);
 });
 
 // Check/Complete a quest
@@ -149,6 +253,7 @@ app.post('/api/quests/:id/check', requireAuth, async (c) => {
   
   // 4. Update User XP and Streak
   let newXp = (userData.totalXp || 0) + 10;
+  let newMonthlyXp = (userData.monthlyXp || 0) + 10;
   let newStreak = userData.currentStreak || 0;
   let maxStreak = userData.maxStreak || 0;
   let streakAtRisk = userData.streakAtRisk;
@@ -158,6 +263,7 @@ app.post('/api/quests/:id/check', requireAuth, async (c) => {
   if (streakAtRisk) {
     // Restore streak!
     newXp += 20; // +10 base + 20 restore = 30 total added
+    newMonthlyXp += 20;
     streakAtRisk = false;
     gracePeriodUntil = null;
     message = 'Streak restored! +30 XP';
@@ -183,6 +289,7 @@ app.post('/api/quests/:id/check', requireAuth, async (c) => {
     // Check 7-day milestone
     if (newStreak > 0 && newStreak % 7 === 0) {
       newXp += 50;
+      newMonthlyXp += 50;
       bonusApi += 3;
       message += ' 🎉 7-Day Milestone! +50 XP & +3 Bonus API';
     }
@@ -192,6 +299,7 @@ app.post('/api/quests/:id/check', requireAuth, async (c) => {
     .update(user)
     .set({
       totalXp: newXp,
+      monthlyXp: newMonthlyXp,
       currentStreak: newStreak,
       maxStreak: maxStreak,
       regularApi,
@@ -203,7 +311,62 @@ app.post('/api/quests/:id/check', requireAuth, async (c) => {
     .where(eq(user.id, session.user.id))
     .returning();
     
-  return c.json({ success: true, user: updatedUser, message });
+  // 5. Achievement Logic
+  const allUserCompletions = await db
+    .select({ id: questCompletions.id })
+    .from(questCompletions)
+    .where(eq(questCompletions.userId, session.user.id));
+    
+  const totalCompletions = allUserCompletions.length;
+  
+  const earnedAchievements: string[] = [];
+  if (newStreak >= 7) earnedAchievements.push('Week Warrior');
+  if (newStreak >= 14) earnedAchievements.push('Fortnight Fighter');
+  if (newStreak >= 30) earnedAchievements.push('Monthly Master');
+  if (totalCompletions >= 100) earnedAchievements.push('Century Quester');
+  if (totalCompletions >= 200) earnedAchievements.push('Quest Legend');
+  if (newStreak >= 7) earnedAchievements.push('Perfect Week');
+  
+  const newAchievements: string[] = [];
+  
+  if (earnedAchievements.length > 0) {
+    // Get existing achievements
+    const existingAchs = await db
+      .select({ type: achievements.achievementType })
+      .from(achievements)
+      .where(eq(achievements.userId, session.user.id));
+      
+    const existingTypes = new Set(existingAchs.map(a => a.type));
+    
+    // Find new ones
+    for (const ach of earnedAchievements) {
+      if (!existingTypes.has(ach)) {
+        await db.insert(achievements).values({
+          userId: session.user.id,
+          achievementType: ach
+        });
+        newAchievements.push(ach);
+      }
+    }
+  }
+
+  if (newAchievements.length > 0) {
+    message += ` 🏆 Unlocked: ${newAchievements.join(', ')}`;
+  }
+
+  return c.json({ success: true, user: updatedUser, message, newAchievements });
+});
+
+app.get('/api/achievements', requireAuth, async (c) => {
+  const session = c.get('session');
+  
+  const userAchievements = await db
+    .select()
+    .from(achievements)
+    .where(eq(achievements.userId, session.user.id))
+    .orderBy(desc(achievements.unlockedAt));
+    
+  return c.json(userAchievements);
 });
 
 // --- LEADERBOARD API ---
@@ -261,7 +424,7 @@ app.get('/api/leaderboard', requireAuth, async (c) => {
 
 // --- FRIENDS API ---
 
-// Search users by username (name)
+// Search users by username
 app.get('/api/friends/search', requireAuth, async (c) => {
   const q = c.req.query('q');
   const session = c.get('session');
@@ -272,20 +435,26 @@ app.get('/api/friends/search', requireAuth, async (c) => {
     .select({
       id: user.id,
       name: user.name,
+      username: user.username,
       totalXp: user.totalXp
     })
     .from(user)
     .where(
-      and(
-        ilike(user.name, `%${q}%`),
-        // don't search yourself
-        // wait, we can't use notEq easily without importing it, so let's just filter it out in memory or use sql
+      or(
+        ilike(user.username, `%${q}%`),
+        ilike(user.name, `%${q}%`)
       )
     )
-    .limit(5);
+    .limit(10);
     
   // Filter out current user
-  return c.json(users.filter(u => u.id !== session.user.id));
+  const filtered = users.filter(u => u.id !== session.user.id);
+  
+  if (filtered.length === 0) {
+    return c.json({ error: 'Username tidak ditemukan', results: [] });
+  }
+  
+  return c.json(filtered);
 });
 
 // Send a friend request
@@ -416,10 +585,18 @@ app.post('/api/cron/daily', async (c) => {
 
 app.get('/', (c) => c.text('Streak API is running!'));
 
-const port = 3000;
-console.log(`Server is running on port ${port}`);
+export default app;
 
-serve({
-  fetch: app.fetch,
-  port
-});
+import { fileURLToPath } from 'node:url';
+
+const isMainModule = process.argv[1] === fileURLToPath(import.meta.url);
+
+if (isMainModule && process.env.NODE_ENV !== 'test') {
+  const port = 3000;
+  console.log(`Server is running on port ${port}`);
+
+  serve({
+    fetch: app.fetch,
+    port
+  });
+}

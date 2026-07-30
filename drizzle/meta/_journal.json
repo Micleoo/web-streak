@@ -22,6 +22,13 @@
       "when": 1785402176714,
       "tag": "0002_serious_sersi",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785409462239,
+      "tag": "0003_fluffy_namorita",
+      "breakpoints": true
     }
   ]
 }
