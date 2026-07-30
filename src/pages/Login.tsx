@@ -32,7 +32,7 @@ const Login = () => {
     });
 
     if (error) {
-      setError(error.message);
+      setError(error.message ?? 'Login failed');
       setLoading(false);
     } else {
       navigate('/dashboard');

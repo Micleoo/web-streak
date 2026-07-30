@@ -41,7 +41,7 @@ const Register = () => {
     });
 
     if (signUpError) {
-      setError(signUpError.message);
+      setError(signUpError.message ?? 'Registration failed');
       setLoading(false);
     } else {
       navigate('/dashboard');
