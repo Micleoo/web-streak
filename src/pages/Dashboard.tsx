@@ -12,9 +12,9 @@ interface Quest {
 
 interface LeaderboardUser {
   id: string;
-  username: string;
-  current_streak: number;
-  total_xp: number;
+  name: string;
+  currentStreak: number;
+  totalXp: number;
 }
 
 const CATEGORIES = [
@@ -235,7 +235,7 @@ const Dashboard = () => {
           <div className="stats-grid">
             <div className="stat-card glass-panel">
               <div className="stat-icon orange"><Flame size={20} /></div>
-              <div className="stat-value">{profile.current_streak}</div>
+              <div className="stat-value">{profile.currentStreak}</div>
               <div className="stat-label">Day Streak</div>
             </div>
             <div className="stat-card glass-panel">
@@ -245,7 +245,7 @@ const Dashboard = () => {
             </div>
             <div className="stat-card glass-panel">
               <div className="stat-icon yellow"><Trophy size={20} /></div>
-              <div className="stat-value">{profile.total_xp}</div>
+              <div className="stat-value">{profile.totalXp}</div>
               <div className="stat-label">Total XP</div>
             </div>
             <div className="stat-card glass-panel">

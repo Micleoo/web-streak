@@ -9,7 +9,12 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const app = new Hono();
+type SessionData = Awaited<ReturnType<typeof auth.api.getSession>>;
+type Variables = {
+  session: NonNullable<SessionData>;
+};
+
+const app = new Hono<{ Variables: Variables }>();
 
 app.use('*', cors());
 
@@ -18,8 +23,10 @@ app.on(['POST', 'GET'], '/api/auth/*', (c) => {
   return auth.handler(c.req.raw);
 });
 
+import type { Context, Next } from 'hono';
+
 // Middleware to get user session
-const requireAuth = async (c: any, next: any) => {
+const requireAuth = async (c: Context<{ Variables: Variables }>, next: Next) => {
   const session = await auth.api.getSession({
     headers: c.req.raw.headers,
   });
@@ -86,7 +93,7 @@ app.post('/api/quests', requireAuth, async (c) => {
 // Delete a quest
 app.delete('/api/quests/:id', requireAuth, async (c) => {
   const session = c.get('session');
-  const id = c.req.param('id');
+  const id = c.req.param('id') as string;
   
   await db
     .delete(quests)
@@ -98,7 +105,7 @@ app.delete('/api/quests/:id', requireAuth, async (c) => {
 // Check/Complete a quest
 app.post('/api/quests/:id/check', requireAuth, async (c) => {
   const session = c.get('session');
-  const id = c.req.param('id');
+  const id = c.req.param('id') as string;
   
   // 1. Check if already completed today
   const today = new Date();
