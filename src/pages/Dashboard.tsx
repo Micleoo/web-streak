@@ -366,6 +366,16 @@ const Dashboard = () => {
       
       <main className="dashboard-container container">
         {/* Left Column: Quests */}
+        {toastMessage && (
+          <div style={{
+            position: 'fixed', bottom: '24px', right: '24px',
+            background: toastMessage.type === 'error' ? 'var(--danger-color)' : 'var(--success-color)',
+            color: 'white', padding: '12px 24px', borderRadius: '8px', zIndex: 9999,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.15)', animation: 'pop 0.3s ease-out'
+          }}>
+            {toastMessage.text}
+          </div>
+        )}
         <div className="dashboard-main">
           <header className="dashboard-header">
             <h1 className="dashboard-title">{greeting}, {profile.name || 'User'}!</h1>
@@ -408,32 +418,58 @@ const Dashboard = () => {
               <h2>Daily Quests</h2>
             </div>
             
-            <form onSubmit={handleAddQuest} className="add-quest-form">
+            <form onSubmit={handleAddQuest} className="add-quest-form" style={{flexWrap: 'wrap'}}>
               <input
                 type="text"
                 placeholder="Tambahkan quest baru..."
                 value={newQuest}
                 onChange={(e) => setNewQuest(e.target.value)}
-                className="quest-input"
+                className="quest-input main-input"
+                style={{flex: '1', minWidth: '200px'}}
               />
-              <input
-                type="number"
-                placeholder="Menit (Opsional)"
-                value={newQuestMinutes}
-                onChange={(e) => setNewQuestMinutes(e.target.value)}
-                className="quest-input minutes-input"
-                min="1"
-                style={{width: '120px'}}
-              />
-              <select 
-                value={newQuestCategory}
-                onChange={(e) => setNewQuestCategory(e.target.value)}
-                className="quest-category-select"
-              >
-                {CATEGORIES.map(c => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
-                ))}
-              </select>
+              <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
+                <input
+                  type="number"
+                  placeholder="Waktu"
+                  value={newQuestMinutes}
+                  onChange={(e) => setNewQuestMinutes(e.target.value)}
+                  className="quest-input minutes-input"
+                  min="1"
+                  style={{width: '80px'}}
+                />
+                <select 
+                  value={newQuestTimeUnit} 
+                  onChange={(e) => setNewQuestTimeUnit(e.target.value)}
+                  className="quest-category-select"
+                  style={{width: 'auto'}}
+                >
+                  <option value="m">Menit</option>
+                  <option value="h">Jam</option>
+                </select>
+              </div>
+              
+              <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
+                <select 
+                  value={newQuestCategory}
+                  onChange={(e) => setNewQuestCategory(e.target.value)}
+                  className="quest-category-select"
+                >
+                  {CATEGORIES.map(c => (
+                    <option key={c.id} value={c.id}>{c.label}</option>
+                  ))}
+                  <option value="custom">Lainnya...</option>
+                </select>
+                {newQuestCategory === 'custom' && (
+                  <input
+                    type="text"
+                    placeholder="Kategori"
+                    value={newCustomCategory}
+                    onChange={(e) => setNewCustomCategory(e.target.value)}
+                    className="quest-input"
+                    style={{width: '100px'}}
+                  />
+                )}
+              </div>
               <button type="submit" className="btn btn-primary add-quest-btn">
                 <Plus size={18} /> Tambah
               </button>
