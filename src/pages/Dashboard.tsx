@@ -336,8 +336,9 @@ const Dashboard = () => {
   };
 
   const getCategoryLabel = (catId?: string) => {
+    if (!catId) return 'General';
     const cat = CATEGORIES.find(c => c.id === catId);
-    return cat ? cat.label : 'General';
+    return cat ? cat.label : catId;
   };
 
   if (authLoading || (loading && user)) {

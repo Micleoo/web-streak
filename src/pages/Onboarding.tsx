@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Flame, Check, Loader2 } from 'lucide-react';
+import { Flame, Check, Loader2, Plus } from 'lucide-react';
 import './Onboarding.css';
 
 const CATEGORIES = [
@@ -23,6 +23,7 @@ export default function Onboarding() {
   const [usernameAvailable, setUsernameAvailable] = useState(false);
   
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [customCategory, setCustomCategory] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -149,17 +150,67 @@ export default function Onboarding() {
 
           <div className="form-group">
             <label>Pilih Kategori Favoritmu (Opsional)</label>
-            <div className="categories-grid">
-              {CATEGORIES.map(cat => (
-                <button
-                  key={cat.id}
+            <div className="categories-frame glass-panel" style={{padding: '16px', borderRadius: '12px', marginTop: '8px'}}>
+              <div className="categories-grid">
+                {CATEGORIES.map(cat => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => toggleCategory(cat.id)}
+                    className={`category-btn ${selectedCategories.includes(cat.id) ? 'selected' : ''}`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+                {selectedCategories.filter(id => !CATEGORIES.some(c => c.id === id)).map(customId => (
+                  <button
+                    key={customId}
+                    type="button"
+                    onClick={() => toggleCategory(customId)}
+                    className="category-btn selected"
+                  >
+                    {customId}
+                  </button>
+                ))}
+              </div>
+              
+              <div style={{display: 'flex', gap: '8px', marginTop: '12px'}}>
+                <input
+                  type="text"
+                  placeholder="Tambah kategori lainnya..."
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (customCategory.trim() && !selectedCategories.includes(customCategory.trim())) {
+                        setSelectedCategories([...selectedCategories, customCategory.trim()]);
+                        setCustomCategory('');
+                      }
+                    }
+                  }}
+                  style={{
+                    flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)',
+                    background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', outline: 'none'
+                  }}
+                />
+                <button 
                   type="button"
-                  onClick={() => toggleCategory(cat.id)}
-                  className={`category-btn ${selectedCategories.includes(cat.id) ? 'selected' : ''}`}
+                  onClick={() => {
+                    if (customCategory.trim() && !selectedCategories.includes(customCategory.trim())) {
+                      setSelectedCategories([...selectedCategories, customCategory.trim()]);
+                      setCustomCategory('');
+                    }
+                  }}
+                  style={{
+                    padding: '8px 12px', borderRadius: '8px', border: 'none',
+                    background: 'var(--primary-color)', color: 'white', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '4px'
+                  }}
                 >
-                  {cat.label}
+                  <Plus size={16} /> Tambah
                 </button>
-              ))}
+              </div>
             </div>
           </div>
 

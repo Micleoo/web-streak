@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authClient } from '../lib/auth-client';
 import Navbar from '../components/Navbar';
-import { Target } from 'lucide-react';
+import { Flame, Plus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useEffect } from 'react';
 import './Auth.css';
@@ -13,6 +13,7 @@ const Register = () => {
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [customCategory, setCustomCategory] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -108,7 +109,7 @@ const Register = () => {
       <div className="auth-container">
         <div className="auth-card glass-panel">
           <div className="auth-header">
-            <Target size={48} className="auth-logo" style={{color: '#3b82f6'}} />
+            <Flame size={48} className="auth-logo" style={{color: '#f97316'}} />
             <h2>Create Account</h2>
             <p>Start your productivity journey</p>
           </div>
@@ -160,24 +161,81 @@ const Register = () => {
             </div>
             <div className="form-group" style={{marginTop: '1rem'}}>
               <label>Kategori Favorit</label>
-              <div className="categories-grid" style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px'}}>
-                {CATEGORIES.map(category => (
-                  <button
-                    key={category.id}
-                    type="button"
-                    onClick={() => toggleCategory(category.id)}
+              <div className="categories-frame glass-panel" style={{padding: '16px', borderRadius: '12px', marginTop: '8px'}}>
+                <div className="categories-grid" style={{display: 'flex', flexWrap: 'wrap', gap: '8px'}}>
+                  {CATEGORIES.map(category => (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => toggleCategory(category.id)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '20px',
+                        border: '1px solid var(--border-color)',
+                        background: selectedCategories.includes(category.id) ? 'var(--primary-color)' : 'transparent',
+                        color: selectedCategories.includes(category.id) ? 'white' : 'var(--text-primary)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {category.label}
+                    </button>
+                  ))}
+                  {selectedCategories.filter(id => !CATEGORIES.some(c => c.id === id)).map(customId => (
+                    <button
+                      key={customId}
+                      type="button"
+                      onClick={() => toggleCategory(customId)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '20px',
+                        border: '1px solid var(--primary-color)',
+                        background: 'var(--primary-color)',
+                        color: 'white',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {customId}
+                    </button>
+                  ))}
+                </div>
+                
+                <div style={{display: 'flex', gap: '8px', marginTop: '12px'}}>
+                  <input
+                    type="text"
+                    placeholder="Tambah kategori lainnya..."
+                    value={customCategory}
+                    onChange={(e) => setCustomCategory(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (customCategory.trim() && !selectedCategories.includes(customCategory.trim())) {
+                          setSelectedCategories([...selectedCategories, customCategory.trim()]);
+                          setCustomCategory('');
+                        }
+                      }
+                    }}
                     style={{
-                      padding: '6px 12px',
-                      borderRadius: '20px',
-                      border: '1px solid var(--border-color)',
-                      background: selectedCategories.includes(category.id) ? 'var(--primary-color)' : 'transparent',
-                      color: selectedCategories.includes(category.id) ? 'white' : 'var(--text-primary)',
-                      cursor: 'pointer'
+                      flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)',
+                      background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', outline: 'none'
+                    }}
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      if (customCategory.trim() && !selectedCategories.includes(customCategory.trim())) {
+                        setSelectedCategories([...selectedCategories, customCategory.trim()]);
+                        setCustomCategory('');
+                      }
+                    }}
+                    style={{
+                      padding: '8px 12px', borderRadius: '8px', border: 'none',
+                      background: 'var(--primary-color)', color: 'white', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: '4px'
                     }}
                   >
-                    {category.label}
+                    <Plus size={16} /> Tambah
                   </button>
-                ))}
+                </div>
               </div>
             </div>
             
