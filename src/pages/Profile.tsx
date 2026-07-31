@@ -16,17 +16,30 @@ const ACHIEVEMENT_INFO: Record<string, { label: string, icon: any, color: string
   'Monthly Master': { label: 'Monthly Master', icon: Trophy, color: '#3b82f6' },
   'Century Quester': { label: 'Century Quester', icon: Target, color: '#10b981' },
   'Quest Legend': { label: 'Quest Legend', icon: Star, color: '#8b5cf6' },
-  'Perfect Week': { label: 'Perfect Week', icon: Award, color: '#ec4899' },
 };
 
 export default function Profile() {
-  const { profile, loading } = useAuth();
+  const { profile, loading, refreshProfile } = useAuth();
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
+  
+  // Edit state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editUsername, setEditUsername] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [toastMessage, setToastMessage] = useState<{text: string, type: 'error' | 'success'} | null>(null);
+
+  const showToast = (text: string, type: 'error' | 'success') => {
+    setToastMessage({text, type});
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   useEffect(() => {
     if (profile) {
       fetchAchievements();
+      setEditName(profile.name);
+      setEditUsername(profile.username || '');
     }
   }, [profile]);
 
@@ -46,6 +59,36 @@ export default function Profile() {
     }
   };
 
+  const handleSaveProfile = async () => {
+    if (!editName.trim() || !editUsername.trim()) return;
+    
+    setSaving(true);
+    try {
+      const res = await fetch('/api/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editName,
+          username: editUsername
+        })
+      });
+      
+      const data = await res.json();
+      if (data.error) {
+        showToast(data.error, 'error');
+      } else {
+        await refreshProfile();
+        setIsEditing(false);
+        showToast('Profile berhasil diperbarui!', 'success');
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('Gagal memperbarui profil', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading || loadingStats) {
     return (
       <div className="profile-page">
@@ -62,7 +105,17 @@ export default function Profile() {
       <Navbar />
       
       <div className="profile-container">
-        <div className="profile-header glass-panel">
+        <div className="profile-header glass-panel" style={{position: 'relative'}}>
+          {toastMessage && (
+            <div style={{
+              position: 'absolute', top: '-40px', left: '50%', transform: 'translateX(-50%)',
+              background: toastMessage.type === 'error' ? 'var(--danger-color)' : 'var(--success-color)',
+              color: 'white', padding: '8px 16px', borderRadius: '8px', zIndex: 10,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)', animation: 'pop 0.3s ease-out'
+            }}>
+              {toastMessage.text}
+            </div>
+          )}
           <div className="avatar-wrapper">
             <div className="avatar-placeholder">
               <User size={48} />
@@ -70,13 +123,45 @@ export default function Profile() {
           </div>
           
           <div className="profile-info">
-            <h1>{profile?.name}</h1>
-            <p className="username">@{profile?.username || 'user'}</p>
-            <p className="email">{profile?.email}</p>
+            {isEditing ? (
+              <div className="edit-profile-form" style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                <input 
+                  type="text" 
+                  value={editName} 
+                  onChange={e => setEditName(e.target.value)} 
+                  className="quest-input" 
+                  placeholder="Name"
+                />
+                <input 
+                  type="text" 
+                  value={editUsername} 
+                  onChange={e => setEditUsername(e.target.value)} 
+                  className="quest-input" 
+                  placeholder="Username"
+                />
+              </div>
+            ) : (
+              <>
+                <h1>{profile?.name}</h1>
+                <p className="username">@{profile?.username || 'user'}</p>
+                <p className="email">{profile?.email}</p>
+              </>
+            )}
           </div>
           
-          <div className="profile-actions">
-            <button className="btn-secondary">Edit Profile</button>
+          <div className="profile-actions" style={{display: 'flex', gap: '8px'}}>
+            {isEditing ? (
+              <>
+                <button className="btn btn-primary" onClick={handleSaveProfile} disabled={saving}>
+                  {saving ? 'Saving...' : 'Save'}
+                </button>
+                <button className="btn btn-secondary" onClick={() => setIsEditing(false)} disabled={saving}>
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button className="btn btn-secondary" onClick={() => setIsEditing(true)}>Edit Profile</button>
+            )}
           </div>
         </div>
 
@@ -102,14 +187,6 @@ export default function Profile() {
             <div className="stat-content">
               <h3>{profile?.totalXp}</h3>
               <p>Total XP</p>
-            </div>
-          </div>
-          
-          <div className="stat-card glass-panel">
-            <Target className="stat-icon blue" />
-            <div className="stat-content">
-              <h3>{profile?.monthlyXp}</h3>
-              <p>Monthly XP</p>
             </div>
           </div>
         </div>

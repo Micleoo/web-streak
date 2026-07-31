@@ -15,9 +15,7 @@ CREATE TABLE users (
   grace_period_until      TIMESTAMPTZ,
   last_quest_completed_at TIMESTAMPTZ,
 
-  -- Progression
   total_xp                INT DEFAULT 0 CHECK (total_xp >= 0),
-  monthly_xp              INT DEFAULT 0 CHECK (monthly_xp >= 0),
   favorite_categories     TEXT[] DEFAULT '{}'
 );
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Flame, Check, Plus, Trophy, User, Trash2, Code, Dumbbell, BookOpen, Gamepad2, Users, Home, Target, Search, X, UserPlus, Zap, AlertTriangle, History } from 'lucide-react';
+import { Flame, Check, Plus, Trophy, User, Trash2, Code, Dumbbell, BookOpen, Gamepad2, Users, Home, Target, Search, X, UserPlus, AlertTriangle, History } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../contexts/AuthContext';
 import './Dashboard.css';
@@ -15,6 +15,7 @@ interface Quest {
 interface LeaderboardUser {
   id: string;
   name: string;
+  username?: string;
   currentStreak: number;
   totalXp: number;
 }
@@ -82,13 +83,9 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (user) {
-      if (profile && !profile.username) {
-        navigate('/onboarding');
-      } else {
-        fetchData();
-        const intervalId = setInterval(fetchLeaderboardsOnly, 60000);
-        return () => clearInterval(intervalId);
-      }
+      fetchData();
+      const intervalId = setInterval(fetchLeaderboardsOnly, 60000);
+      return () => clearInterval(intervalId);
     }
   }, [user, profile, navigate]);
 
@@ -115,8 +112,15 @@ const Dashboard = () => {
         fetch('/api/friends/requests').then(r => r.json())
       ]);
       
-      if (questsRes.quests) setQuests(questsRes.quests);
-      if (questsRes.completedIds) setCompletedQuestIds(new Set(questsRes.completedIds));
+      if (questsRes.completedIds) {
+        // completedIds is an array of IDs, but a quest can be completed multiple times.
+        // We want to count total completions for today to display "X / Y" where X can be greater than Y.
+        // For UI purposes, we'll store a Map or just a count for each quest if needed.
+        // Actually, let's keep it simple: completedIds is an array of strings. We can store it directly.
+        // We will change completedQuestIds to be an array or map if we need exact counts.
+        // Wait, the API returns `completedIds` as an array of all completions today.
+        setCompletedQuestIds(new Set(questsRes.completedIds)); 
+      }
       if (Array.isArray(leaderboardRes)) setLeaderboard(leaderboardRes);
       if (Array.isArray(friendsRes)) setFriendsLeaderboard(friendsRes);
       if (Array.isArray(requestsRes)) setFriendRequests(requestsRes);
@@ -266,17 +270,9 @@ const Dashboard = () => {
 
 
   const handleCheckQuest = async (questId: string) => {
-    if (completedQuestIds.has(questId) || !user || !profile) return;
-    if (profile.regularApi + profile.bonusApi <= 0) {
-      alert("API Limit Reached! Kamu kehabisan API slots hari ini.");
-      return;
-    }
+    if (!user || !profile) return;
 
-    // Optimistic UI update
-    const newCompleted = new Set(completedQuestIds);
-    newCompleted.add(questId);
-    setCompletedQuestIds(newCompleted);
-
+    // Optimistic UI update - we just let the check animation play but we don't disable it
     try {
       const res = await fetch(`/api/quests/${questId}/check`, { method: 'POST' });
       const data = await res.json();
@@ -285,7 +281,7 @@ const Dashboard = () => {
          return;
       }
       await refreshProfile();
-      fetchData(); // reload leaderboard
+      fetchData(); // reload leaderboard and completions
     } catch (e) {
       console.error(e);
       fetchData();
@@ -338,8 +334,8 @@ const Dashboard = () => {
             <div className="grace-period-banner">
               <AlertTriangle size={20} className="warning-icon" />
               <div className="banner-text">
-                <strong>API kamu padam!</strong>
-                <p>Selesaikan minimal 1 quest sebelum {new Date(profile.gracePeriodUntil!).toLocaleDateString()} {new Date(profile.gracePeriodUntil!).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} untuk memulihkan streak.</p>
+                <strong>Bara kamu padam!</strong>
+                <p>Selesaikan minimal 1 quest sebelum {new Date(profile.gracePeriodUntil!).toLocaleDateString()} {new Date(profile.gracePeriodUntil!).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} untuk memulihkan Bara.</p>
               </div>
             </div>
           )}
@@ -362,11 +358,6 @@ const Dashboard = () => {
               <div className="stat-icon yellow"><Trophy size={20} /></div>
               <div className="stat-value">{profile.totalXp}</div>
               <div className="stat-label">Total XP</div>
-            </div>
-            <div className="stat-card glass-panel">
-              <div className="stat-icon green"><Zap size={20} /></div>
-              <div className="stat-value">{profile.regularApi + profile.bonusApi}</div>
-              <div className="stat-label">API Slots</div>
             </div>
           </div>
 
@@ -458,6 +449,11 @@ const Dashboard = () => {
                           {getCategoryIcon(quest.category)}
                           {getCategoryLabel(quest.category)}
                         </span>
+                        {isCompleted && (
+                          <span className="quest-category-badge" style={{background: 'var(--success-color)', color: '#fff', marginLeft: '8px'}}>
+                            Selesai
+                          </span>
+                        )}
                         {quest.estimatedMinutes && (
                           <span className="quest-minutes-badge" style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '8px', padding: '2px 6px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px'}}>
                             ⏳ {quest.estimatedMinutes}m
@@ -470,9 +466,8 @@ const Dashboard = () => {
                       <button 
                         className="quest-edit-btn"
                         onClick={() => handleEditClick(quest)}
-                        disabled={isCompleted}
                         title="Edit Quest"
-                        style={{background: 'none', border: 'none', cursor: 'pointer', padding: '8px', color: 'var(--text-secondary)', opacity: isCompleted ? 0.5 : 1}}
+                        style={{background: 'none', border: 'none', cursor: 'pointer', padding: '8px', color: 'var(--text-secondary)'}}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                       </button>
@@ -487,7 +482,6 @@ const Dashboard = () => {
                       <button 
                         className="quest-delete-btn"
                         onClick={() => handleDeleteQuest(quest.id)}
-                        disabled={isCompleted}
                         title="Hapus Quest"
                       >
                         <Trash2 size={18} />
@@ -495,9 +489,8 @@ const Dashboard = () => {
                       <button 
                         className={`quest-check-btn ${isCompleted ? 'is-completed' : ''}`}
                         onClick={() => handleCheckQuest(quest.id)}
-                        disabled={isCompleted}
                       >
-                        {isCompleted ? <Check size={20} /> : null}
+                        {isCompleted ? <Check size={20} /> : <Check size={20} style={{opacity: 0.3}} />}
                       </button>
                     </div>
                   </div>
@@ -557,7 +550,7 @@ const Dashboard = () => {
                   </div>
                   <div className="friend-info">
                     <h4>{leader.name || 'User'}</h4>
-                    <span>{leader.totalXp.toLocaleString()} XP</span>
+                    <span>@{leader.username || 'user'} · {leader.totalXp.toLocaleString()} XP</span>
                   </div>
                   <div className="friend-streak">
                     <Flame size={14} className="text-gradient" />
@@ -602,7 +595,7 @@ const Dashboard = () => {
                           <button className="btn btn-primary" style={{padding: '6px 12px', background: 'var(--success-color)'}} onClick={() => handleRespondRequest(req.requestId, 'accept')}>
                             Terima
                           </button>
-                          <button className="btn" style={{padding: '6px 12px', background: 'var(--bg-card)'}} onClick={() => handleRespondRequest(req.requestId, 'reject')}>
+                          <button className="btn" style={{padding: '6px 12px', background: 'rgba(239, 68, 68, 0.2)', color: 'var(--danger-color)'}} onClick={() => handleRespondRequest(req.requestId, 'reject')}>
                             Tolak
                           </button>
                         </div>

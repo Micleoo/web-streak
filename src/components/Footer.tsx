@@ -20,12 +20,6 @@ const Footer: React.FC = () => {
             <a href="/dashboard">Leaderboard</a>
             <a href="/dashboard">Quests</a>
           </div>
-          <div className="footer-column">
-            <h4>Support</h4>
-            <a href="/">FAQ</a>
-            <a href="/">Contact</a>
-            <a href="/">Privacy</a>
-          </div>
         </div>
       </div>
       <div className="footer-bottom">

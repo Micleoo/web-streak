@@ -10,9 +10,6 @@ export interface UserProfile {
   currentStreak: number;
   maxStreak: number;
   totalXp: number;
-  monthlyXp: number;
-  regularApi: number;
-  bonusApi: number;
   streakAtRisk: boolean;
   gracePeriodUntil: string | null;
 }
@@ -65,8 +62,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshProfile = async () => {
-    // Force a page reload to refetch session data from the server
-    window.location.href = '/dashboard';
+    try {
+      const res = await fetch('/api/me', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setDbUser(data);
+      }
+    } catch (e) {
+      console.error('Failed to refresh profile', e);
+    }
   };
 
   const baseUser = sessionData?.user as any;
@@ -81,9 +85,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     currentStreak: user.currentStreak || 0,
     maxStreak: user.maxStreak || 0,
     totalXp: user.totalXp || 0,
-    monthlyXp: user.monthlyXp || 0,
-    regularApi: user.regularApi ?? 3,
-    bonusApi: user.bonusApi ?? 0,
     streakAtRisk: user.streakAtRisk || false,
     gracePeriodUntil: user.gracePeriodUntil || null,
   } : null;

@@ -96,6 +96,33 @@ app.post('/api/onboarding', requireAuth, async (c) => {
 
 // --- QUOTES / QUESTS API ---
 
+// Update current user profile
+app.put('/api/me', requireAuth, async (c) => {
+  const session = c.get('session');
+  const body = await c.req.json();
+  
+  if (!body.name || !body.username) {
+    return c.json({ error: 'Name and Username are required' }, 400);
+  }
+  
+  // Check if username is taken by someone else
+  const existingUser = await db.select().from(user).where(eq(user.username, body.username));
+  if (existingUser.length > 0 && existingUser[0].id !== session.user.id) {
+    return c.json({ error: 'Username is already taken' }, 400);
+  }
+  
+  await db
+    .update(user)
+    .set({
+      name: body.name,
+      username: body.username,
+      favoriteCategories: body.favoriteCategories || null
+    })
+    .where(eq(user.id, session.user.id));
+    
+  return c.json({ success: true });
+});
+
 // Get all quests for current user
 app.get('/api/quests', requireAuth, async (c) => {
   const session = c.get('session');
@@ -211,87 +238,66 @@ app.post('/api/quests/:id/check', requireAuth, async (c) => {
   const session = c.get('session');
   const id = c.req.param('id') as string;
   
-  // 1. Check if already completed today
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  const existing = await db
-    .select()
-    .from(questCompletions)
-    .where(
-      and(
-        eq(questCompletions.questId, id),
-        eq(questCompletions.userId, session.user.id),
-        gte(questCompletions.completedAt, today)
-      )
-    );
-    
-  if (existing.length > 0) {
-    return c.json({ error: 'Already completed today' }, 400);
-  }
-  
-  // 2. Fetch User Data to check API slots
-  const [userData] = await db.select().from(user).where(eq(user.id, session.user.id));
-  
-  if (userData.regularApi <= 0 && userData.bonusApi <= 0) {
-    return c.json({ error: 'No API slots remaining today' }, 400);
-  }
-
-  let regularApi = userData.regularApi;
-  let bonusApi = userData.bonusApi;
-  if (regularApi > 0) {
-    regularApi -= 1;
-  } else {
-    bonusApi -= 1;
-  }
-
-  // 3. Insert completion log
+  // 2. Insert completion log
   await db.insert(questCompletions).values({
     questId: id,
     userId: session.user.id,
   });
   
+  // 3. Fetch User Data to update progress
+  const [userData] = await db.select().from(user).where(eq(user.id, session.user.id));
+  
   // 4. Update User XP and Streak
   let newXp = (userData.totalXp || 0) + 10;
-  let newMonthlyXp = (userData.monthlyXp || 0) + 10;
   let newStreak = userData.currentStreak || 0;
   let maxStreak = userData.maxStreak || 0;
   let streakAtRisk = userData.streakAtRisk;
   let gracePeriodUntil = userData.gracePeriodUntil;
   let message = 'Quest completed! +10 XP';
-
-  if (streakAtRisk) {
-    // Restore streak!
-    newXp += 20; // +10 base + 20 restore = 30 total added
-    newMonthlyXp += 20;
-    streakAtRisk = false;
-    gracePeriodUntil = null;
-    message = 'Streak restored! +30 XP';
-  }
   
-  // Check if this is the first quest of the day
-  const completionsToday = await db
-    .select()
-    .from(questCompletions)
-    .where(
-      and(
-        eq(questCompletions.userId, session.user.id),
-        gte(questCompletions.completedAt, today)
-      )
-    );
-    
-  if (completionsToday.length === 1) { // includes the one we just inserted
-    newStreak += 1;
-    if (newStreak > maxStreak) {
-      maxStreak = newStreak;
+  const now = new Date();
+  
+  if (streakAtRisk && gracePeriodUntil) {
+    if (now < gracePeriodUntil) {
+      // Restore streak!
+      newXp += 20; // +10 base + 20 restore = 30 total added
+      streakAtRisk = false;
+      gracePeriodUntil = null;
+      message = 'Bara dipulihkan! +30 XP';
+      // We do not increment newStreak on restore day.
+    } else {
+      // Grace period expired. Start over.
+      newStreak = 1;
+      streakAtRisk = false;
+      gracePeriodUntil = null;
+      message = 'Bara telah padam. Memulai streak baru! +10 XP';
     }
-    
-    // Check 7-day milestone
-    if (newStreak > 0 && newStreak % 7 === 0) {
-      newXp += 50;
-      newMonthlyXp += 50;
-      bonusApi += 3;
-      message += ' 🎉 7-Day Milestone! +50 XP & +3 Bonus API';
+  } else {
+    // Normal day
+    // Check if this is the first quest of the day
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const completionsToday = await db
+      .select()
+      .from(questCompletions)
+      .where(
+        and(
+          eq(questCompletions.userId, session.user.id),
+          gte(questCompletions.completedAt, today)
+        )
+      );
+      
+    if (completionsToday.length === 1) { // includes the one we just inserted
+      newStreak += 1;
+      if (newStreak > maxStreak) {
+        maxStreak = newStreak;
+      }
+      
+      // Check 7-day milestone
+      if (newStreak > 0 && newStreak % 7 === 0) {
+        newXp += 50;
+        message += ' 🎉 7-Day Milestone! +50 XP';
+      }
     }
   }
   
@@ -299,11 +305,8 @@ app.post('/api/quests/:id/check', requireAuth, async (c) => {
     .update(user)
     .set({
       totalXp: newXp,
-      monthlyXp: newMonthlyXp,
       currentStreak: newStreak,
       maxStreak: maxStreak,
-      regularApi,
-      bonusApi,
       streakAtRisk,
       gracePeriodUntil,
       lastQuestCompletedAt: new Date(),
@@ -325,7 +328,6 @@ app.post('/api/quests/:id/check', requireAuth, async (c) => {
   if (newStreak >= 30) earnedAchievements.push('Monthly Master');
   if (totalCompletions >= 100) earnedAchievements.push('Century Quester');
   if (totalCompletions >= 200) earnedAchievements.push('Quest Legend');
-  if (newStreak >= 7) earnedAchievements.push('Perfect Week');
   
   const newAchievements: string[] = [];
   
@@ -396,6 +398,7 @@ app.get('/api/leaderboard', requireAuth, async (c) => {
       .select({
         id: user.id,
         name: user.name,
+        username: user.username,
         currentStreak: user.currentStreak,
         totalXp: user.totalXp,
       })
@@ -412,6 +415,7 @@ app.get('/api/leaderboard', requireAuth, async (c) => {
     .select({
       id: user.id,
       name: user.name,
+      username: user.username,
       currentStreak: user.currentStreak,
       totalXp: user.totalXp,
     })
@@ -447,8 +451,25 @@ app.get('/api/friends/search', requireAuth, async (c) => {
     )
     .limit(10);
     
-  // Filter out current user
-  const filtered = users.filter(u => u.id !== session.user.id);
+  // Filter out current user and existing friends
+  const myFriends = await db
+    .select()
+    .from(friends)
+    .where(
+      or(
+        eq(friends.userId, session.user.id),
+        eq(friends.friendId, session.user.id)
+      )
+    );
+    
+  const excludeIds = new Set<string>();
+  excludeIds.add(session.user.id);
+  myFriends.forEach(f => {
+    excludeIds.add(f.userId);
+    excludeIds.add(f.friendId);
+  });
+  
+  const filtered = users.filter(u => !excludeIds.has(u.id));
   
   if (filtered.length === 0) {
     return c.json({ error: 'Username tidak ditemukan', results: [] });
@@ -537,6 +558,13 @@ app.post('/api/friends/respond', requireAuth, async (c) => {
     await db.update(friends)
       .set({ status: 'accepted' })
       .where(eq(friends.id, requestId));
+      
+    // Insert reciprocal relationship
+    await db.insert(friends).values({
+      userId: session.user.id,
+      friendId: request.userId, // User who sent the request
+      status: 'accepted'
+    });
   } else if (action === 'reject') {
     await db.delete(friends)
       .where(eq(friends.id, requestId));
@@ -550,10 +578,7 @@ app.post('/api/cron/daily', async (c) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // 1. Reset regular API for all users
-  await db.update(user).set({ regularApi: 3, lastApiResetAt: new Date() });
-
-  // 2. Users who haven't completed a quest yesterday or earlier -> streak at risk
+  // 1. Users who haven't completed a quest yesterday or earlier -> streak at risk
   await db.update(user).set({
     streakAtRisk: true,
     gracePeriodUntil: new Date(Date.now() + 48 * 60 * 60 * 1000) // 48 hours from now
@@ -568,7 +593,7 @@ app.post('/api/cron/daily', async (c) => {
     )
   );
 
-  // 3. Reset streak for users whose grace period has expired
+  // 2. Reset streak for users whose grace period has expired
   await db.update(user).set({
     currentStreak: 0,
     streakAtRisk: false,

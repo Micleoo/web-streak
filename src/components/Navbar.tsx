@@ -1,4 +1,4 @@
-import { LogIn, LogOut, Target, Menu, X } from 'lucide-react';
+import { LogIn, LogOut, Flame, Menu, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useState } from 'react';
@@ -23,12 +23,19 @@ const Navbar: React.FC = () => {
     setIsMobileMenuOpen(false);
   };
 
+  const handleLogoClick = () => {
+    if (window.location.pathname === '/') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    closeMobileMenu();
+  };
+
   return (
     <nav className="navbar glass-panel">
       <div className="container navbar-container">
-        <Link to="/" className="navbar-logo" onClick={closeMobileMenu}>
+        <Link to="/" className="navbar-logo" onClick={handleLogoClick}>
           <div className="logo-icon animate-pulse-glow">
-            <Target size={24} strokeWidth={2.5} color="white" />
+            <Flame size={24} strokeWidth={2.5} color="white" />
           </div>
           <span className="logo-text">STREAK</span>
         </Link>
