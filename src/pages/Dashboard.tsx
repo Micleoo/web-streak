@@ -43,12 +43,23 @@ const Dashboard = () => {
   const [completedQuestIds, setCompletedQuestIds] = useState<Set<string>>(new Set());
   const [newQuest, setNewQuest] = useState('');
   const [newQuestCategory, setNewQuestCategory] = useState('coding');
+  const [newCustomCategory, setNewCustomCategory] = useState('');
   const [newQuestMinutes, setNewQuestMinutes] = useState('');
+  const [newQuestTimeUnit, setNewQuestTimeUnit] = useState('m');
   
   const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
   const [editQuestName, setEditQuestName] = useState('');
   const [editQuestCategory, setEditQuestCategory] = useState('coding');
+  const [editCustomCategory, setEditCustomCategory] = useState('');
   const [editQuestMinutes, setEditQuestMinutes] = useState('');
+  const [editQuestTimeUnit, setEditQuestTimeUnit] = useState('m');
+  
+  const [toastMessage, setToastMessage] = useState<{text: string, type: 'error' | 'success'} | null>(null);
+
+  const showToast = (text: string, type: 'error' | 'success') => {
+    setToastMessage({text, type});
+    setTimeout(() => setToastMessage(null), 3000);
+  };
   
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -155,7 +166,7 @@ const Dashboard = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ friendId })
       });
-      alert('Permintaan pertemanan terkirim!');
+      showToast('Permintaan pertemanan terkirim!', 'success');
       setSearchResults(searchResults.filter((u: any) => u.id !== friendId));
     } catch (e) {
       console.error(e);
@@ -180,14 +191,19 @@ const Dashboard = () => {
     e.preventDefault();
     if (!newQuest.trim() || !user) return;
     
+    let totalMinutes = newQuestMinutes ? parseInt(newQuestMinutes, 10) : undefined;
+    if (totalMinutes && newQuestTimeUnit === 'h') totalMinutes *= 60;
+    
+    const categoryToSave = newQuestCategory === 'custom' && newCustomCategory.trim() ? newCustomCategory.trim() : newQuestCategory;
+
     try {
       const res = await fetch('/api/quests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           name: newQuest, 
-          category: newQuestCategory,
-          estimatedMinutes: newQuestMinutes 
+          category: categoryToSave,
+          estimatedMinutes: totalMinutes 
         })
       });
       const data = await res.json();
@@ -195,6 +211,7 @@ const Dashboard = () => {
         setQuests([...quests, data]);
         setNewQuest('');
         setNewQuestMinutes('');
+        setNewCustomCategory('');
       }
     } catch(e) { console.error(e) }
   };
@@ -217,8 +234,28 @@ const Dashboard = () => {
   const handleEditClick = (quest: Quest) => {
     setEditingQuestId(quest.id);
     setEditQuestName(quest.name);
-    setEditQuestCategory(quest.category || 'coding');
-    setEditQuestMinutes(quest.estimatedMinutes ? String(quest.estimatedMinutes) : '');
+    
+    const isCustom = quest.category && !CATEGORIES.some(c => c.id === quest.category);
+    if (isCustom) {
+      setEditQuestCategory('custom');
+      setEditCustomCategory(quest.category!);
+    } else {
+      setEditQuestCategory(quest.category || 'coding');
+      setEditCustomCategory('');
+    }
+    
+    if (quest.estimatedMinutes) {
+      if (quest.estimatedMinutes % 60 === 0 && quest.estimatedMinutes > 0) {
+        setEditQuestMinutes(String(quest.estimatedMinutes / 60));
+        setEditQuestTimeUnit('h');
+      } else {
+        setEditQuestMinutes(String(quest.estimatedMinutes));
+        setEditQuestTimeUnit('m');
+      }
+    } else {
+      setEditQuestMinutes('');
+      setEditQuestTimeUnit('m');
+    }
   };
 
   const handleViewHistory = async (quest: Quest) => {
@@ -241,13 +278,18 @@ const Dashboard = () => {
   const handleSaveEdit = async (questId: string) => {
     if (!editQuestName.trim()) return;
     
+    let totalMinutes = editQuestMinutes ? parseInt(editQuestMinutes, 10) : undefined;
+    if (totalMinutes && editQuestTimeUnit === 'h') totalMinutes *= 60;
+
+    const categoryToSave = editQuestCategory === 'custom' && editCustomCategory.trim() ? editCustomCategory.trim() : editQuestCategory;
+    
     // Optimistic UI update
     const originalQuests = [...quests];
     setQuests(quests.map(q => q.id === questId ? {
       ...q,
       name: editQuestName,
-      category: editQuestCategory,
-      estimatedMinutes: editQuestMinutes ? parseInt(editQuestMinutes, 10) : undefined
+      category: categoryToSave,
+      estimatedMinutes: totalMinutes
     } : q));
     setEditingQuestId(null);
     
@@ -257,8 +299,8 @@ const Dashboard = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: editQuestName,
-          category: editQuestCategory,
-          estimatedMinutes: editQuestMinutes
+          category: categoryToSave,
+          estimatedMinutes: totalMinutes
         })
       });
       if (!res.ok) setQuests(originalQuests); // revert on error
@@ -413,24 +455,47 @@ const Dashboard = () => {
                           className="quest-input"
                           style={{flex: '1', minWidth: '150px'}}
                         />
-                        <input
-                          type="number"
-                          placeholder="Menit"
-                          value={editQuestMinutes}
-                          onChange={(e) => setEditQuestMinutes(e.target.value)}
-                          className="quest-input minutes-input"
-                          min="1"
-                          style={{width: '80px'}}
-                        />
-                        <select 
-                          value={editQuestCategory}
-                          onChange={(e) => setEditQuestCategory(e.target.value)}
-                          className="quest-category-select"
-                        >
-                          {CATEGORIES.map(c => (
-                            <option key={c.id} value={c.id}>{c.label}</option>
-                          ))}
-                        </select>
+                        <div style={{display: 'flex', gap: '4px'}}>
+                          <input
+                            type="number"
+                            placeholder="Waktu"
+                            value={editQuestMinutes}
+                            onChange={(e) => setEditQuestMinutes(e.target.value)}
+                            className="quest-input minutes-input"
+                            min="1"
+                            style={{width: '60px'}}
+                          />
+                          <select 
+                            value={editQuestTimeUnit}
+                            onChange={(e) => setEditQuestTimeUnit(e.target.value)}
+                            className="quest-category-select"
+                          >
+                            <option value="m">m</option>
+                            <option value="h">j</option>
+                          </select>
+                        </div>
+                        <div style={{display: 'flex', gap: '4px'}}>
+                          <select 
+                            value={editQuestCategory}
+                            onChange={(e) => setEditQuestCategory(e.target.value)}
+                            className="quest-category-select"
+                          >
+                            {CATEGORIES.map(c => (
+                              <option key={c.id} value={c.id}>{c.label}</option>
+                            ))}
+                            <option value="custom">Lainnya...</option>
+                          </select>
+                          {editQuestCategory === 'custom' && (
+                            <input
+                              type="text"
+                              placeholder="Kategori"
+                              value={editCustomCategory}
+                              onChange={(e) => setEditCustomCategory(e.target.value)}
+                              className="quest-input"
+                              style={{width: '80px'}}
+                            />
+                          )}
+                        </div>
                         <div style={{display: 'flex', gap: '4px'}}>
                           <button onClick={() => handleSaveEdit(quest.id)} className="btn btn-primary" style={{padding: '6px 12px'}}>Simpan</button>
                           <button onClick={() => setEditingQuestId(null)} className="btn btn-secondary" style={{padding: '6px 12px'}}>Batal</button>
@@ -456,7 +521,7 @@ const Dashboard = () => {
                         )}
                         {quest.estimatedMinutes && (
                           <span className="quest-minutes-badge" style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '8px', padding: '2px 6px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px'}}>
-                            ⏳ {quest.estimatedMinutes}m
+                            ⏳ {quest.estimatedMinutes >= 60 && quest.estimatedMinutes % 60 === 0 ? `${quest.estimatedMinutes / 60}j` : `${quest.estimatedMinutes}m`}
                           </span>
                         )}
                       </div>

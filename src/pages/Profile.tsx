@@ -108,10 +108,10 @@ export default function Profile() {
         <div className="profile-header glass-panel" style={{position: 'relative'}}>
           {toastMessage && (
             <div style={{
-              position: 'absolute', top: '-40px', left: '50%', transform: 'translateX(-50%)',
+              position: 'fixed', bottom: '24px', right: '24px',
               background: toastMessage.type === 'error' ? 'var(--danger-color)' : 'var(--success-color)',
-              color: 'white', padding: '8px 16px', borderRadius: '8px', zIndex: 10,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)', animation: 'pop 0.3s ease-out'
+              color: 'white', padding: '12px 24px', borderRadius: '8px', zIndex: 9999,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.15)', animation: 'pop 0.3s ease-out'
             }}>
               {toastMessage.text}
             </div>
