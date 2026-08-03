@@ -58,37 +58,47 @@ const Register = () => {
       setLoading(false);
       return;
     }
-    
-    // Check username availability
-    try {
-      const checkRes = await fetch(`/api/users/check-username?username=${encodeURIComponent(username)}`);
-      if (checkRes.ok) {
-        const data = await checkRes.json();
-        if (!data.available) {
-           setError('Username is already taken');
-           setLoading(false);
-           return;
-        }
-      }
-    } catch(e) {
-      console.error("Failed checking username", e);
-    }
 
-    const { error: signUpError } = await authClient.signUp.email({
-      email,
-      password,
-      name: name
-    });
-
-    if (signUpError) {
-      setError(signUpError.message ?? 'Registration failed');
+    if (password.length < 8) {
+      setError('Password minimal 8 karakter.');
       setLoading(false);
-    } else {
+      return;
+    }
+    
+    try {
+      // Check username availability
+      try {
+        const checkRes = await fetch(`/api/check-username/${encodeURIComponent(username)}`);
+        if (checkRes.ok) {
+          const data = await checkRes.json();
+          if (!data.available) {
+             setError('Username sudah digunakan, pilih username lain.');
+             setLoading(false);
+             return;
+          }
+        }
+      } catch (e) {
+        console.error("Failed checking username", e);
+      }
+
+      const signUpRes = await authClient.signUp.email({
+        email,
+        password,
+        name: name
+      });
+
+      if (signUpRes.error) {
+        setError(signUpRes.error.message ?? 'Registration failed. Periksa data Anda.');
+        setLoading(false);
+        return;
+      }
+
       // Now update username and categories
       try {
         await fetch('/api/me', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             name: name,
             username: username,
@@ -99,7 +109,13 @@ const Register = () => {
       } catch (e) {
         console.error("Failed to update profile", e);
       }
-      navigate('/dashboard');
+
+      // Redirect to dashboard with full page load to ensure session cookie is active
+      window.location.href = '/dashboard';
+    } catch (err: any) {
+      console.error("Registration error:", err);
+      setError(err?.message || 'Terjadi kesalahan saat registrasi. Silakan coba lagi.');
+      setLoading(false);
     }
   };
 
