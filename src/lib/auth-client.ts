@@ -1,7 +1,7 @@
 import { createAuthClient } from "better-auth/react";
 
 export const authClient = createAuthClient({
-    baseURL: "http://localhost:5173/api/auth" // using vite proxy
+  baseURL: typeof window !== "undefined" ? `${window.location.origin}/api/auth` : "/api/auth"
 });
 
 export const { signIn, signUp, signOut, useSession } = authClient;
