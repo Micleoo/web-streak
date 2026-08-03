@@ -23,8 +23,14 @@ app.use('*', cors({
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
 }));
 
-// Authentication Routes (Better Auth)
-app.on(['POST', 'GET'], '/api/auth/*', (c) => {
+// Authentication Routes (Better Auth - supports all methods including OPTIONS preflight)
+app.all('/api/auth/*', (c) => {
+  return auth.handler(c.req.raw);
+});
+app.all('/api/auth', (c) => {
+  return auth.handler(c.req.raw);
+});
+app.all('/auth/*', (c) => {
   return auth.handler(c.req.raw);
 });
 

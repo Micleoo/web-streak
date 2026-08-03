@@ -88,7 +88,9 @@ const Register = () => {
       });
 
       if (signUpRes.error) {
-        setError(signUpRes.error.message ?? 'Registration failed. Periksa data Anda.');
+        console.error("SignUp Error details:", signUpRes.error);
+        const errMsg = signUpRes.error.message || (signUpRes.error as any).statusText || `Gagal registrasi (${(signUpRes.error as any).status || 'Unknown error'})`;
+        setError(errMsg);
         setLoading(false);
         return;
       }
