@@ -16,7 +16,12 @@ type Variables = {
 
 const app = new Hono<{ Variables: Variables }>();
 
-app.use('*', cors());
+app.use('*', cors({
+  origin: (origin) => origin || '*',
+  credentials: true,
+  allowHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+}));
 
 // Authentication Routes (Better Auth)
 app.on(['POST', 'GET'], '/api/auth/*', (c) => {
