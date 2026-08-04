@@ -4,7 +4,7 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// api/[...path].ts
+// server/api-entry.ts
 import { getRequestListener } from "@hono/node-server";
 
 // server/index.ts
@@ -834,7 +834,7 @@ app.get("/api", (c) => c.json({ status: "ok", message: "Streak API is running!" 
 app.get("/api/", (c) => c.json({ status: "ok", message: "Streak API is running!" }));
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 app.get("/", (c) => c.text("Streak API is running!"));
-var server_default = app;
+var index_default = app;
 var isMainModule = process.argv[1] === fileURLToPath(import.meta.url);
 if (!process.env.VERCEL && isMainModule && process.env.NODE_ENV !== "test") {
   const port = 3e3;
@@ -855,8 +855,8 @@ if (!process.env.VERCEL && isMainModule && process.env.NODE_ENV !== "test") {
   process.on("SIGTERM", shutdown);
 }
 
-// api/[...path].ts
-var listener = getRequestListener(server_default.fetch);
+// server/api-entry.ts
+var listener = getRequestListener(index_default.fetch);
 async function handler(req, res) {
   try {
     return await listener(req, res);

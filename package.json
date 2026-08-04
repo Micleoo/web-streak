@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "tsx watch server/index.ts",
-    "build": "tsc -b && vite build && esbuild api/index.ts --bundle --platform=node --target=node20 --format=esm --packages=external --outfile=api/index.js && esbuild api/[...path].ts --bundle --platform=node --target=node20 --format=esm --packages=external --outfile=api/[...path].js",
+    "build": "tsc -b && vite build && esbuild server/api-entry.ts --bundle --platform=node --target=node20 --format=esm --packages=external --outfile=api/index.js && cp api/index.js \"api/[...path].js\"",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest",

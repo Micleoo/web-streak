@@ -1,5 +1,5 @@
 import { getRequestListener } from '@hono/node-server';
-import app from '../server/index';
+import app from './index';
 
 const listener = getRequestListener(app.fetch);
 
@@ -18,4 +18,3 @@ export default async function handler(req: any, res: any) {
     }
   }
 }
-
