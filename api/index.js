@@ -864,10 +864,20 @@ if (!process.env.VERCEL && isMainModule && process.env.NODE_ENV !== "test") {
 var listener = getRequestListener(index_default.fetch);
 async function handler(req, res) {
   try {
-    const originalUrl = req.headers["x-matched-path"] || req.headers["x-forwarded-uri"] || req.headers["x-now-route-matches"] || req.url;
-    if (originalUrl && typeof originalUrl === "string" && originalUrl.startsWith("/api")) {
-      req.url = originalUrl;
+    const host = req.headers["x-forwarded-host"] || req.headers["host"] || "web-streak.vercel.app";
+    const proto = req.headers["x-forwarded-proto"] || "https";
+    try {
+      const parsed = new URL(req.url, `${proto}://${host}`);
+      const pathParam = parsed.searchParams.get("path");
+      if (pathParam) {
+        parsed.searchParams.delete("path");
+        const qs = parsed.searchParams.toString();
+        req.url = `/api/${pathParam}${qs ? `?${qs}` : ""}`;
+      }
+    } catch {
     }
+    req.headers["x-forwarded-proto"] = proto;
+    req.headers["x-forwarded-host"] = host;
     return await listener(req, res);
   } catch (error) {
     console.error("Vercel API error:", error);
