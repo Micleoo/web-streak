@@ -6,11 +6,14 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
-const connectionString = process.env.DATABASE_URL;
+let connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
   throw new Error('DATABASE_URL is missing in .env file');
 }
+
+// Fix typo where database name in Vercel env was truncated to /postgr instead of /postgres
+connectionString = connectionString.replace(/\/postgr(\?|$)/, '/postgres$1');
 
 // Disable prefetch as it is not supported for "Transaction" pool mode
 export const client = postgres(connectionString, {

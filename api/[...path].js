@@ -122,6 +122,7 @@ var connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
   throw new Error("DATABASE_URL is missing in .env file");
 }
+connectionString = connectionString.replace(/\/postgr(\?|$)/, "/postgres$1");
 var client = postgres(connectionString, {
   prepare: false,
   ssl: "require",
