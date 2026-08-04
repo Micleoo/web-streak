@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "tsx watch server/index.ts",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && esbuild api/index.ts --bundle --platform=node --target=node20 --format=esm --packages=external --outfile=api/index.js && esbuild api/[...path].ts --bundle --platform=node --target=node20 --format=esm --packages=external --outfile=api/[...path].js",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest",
@@ -19,6 +19,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
+    "esbuild": "^0.28.1",
     "hono": "^4.12.32",
     "lucide-react": "^1.27.0",
     "postgres": "^3.4.9",
