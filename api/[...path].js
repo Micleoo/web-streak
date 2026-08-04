@@ -352,7 +352,6 @@ app.use("*", cors({
 }));
 app.post("/api/auth/sign-in/email", async (c) => {
   try {
-    const rawReq = c.req.raw.clone();
     const body = await c.req.json().catch(() => null);
     if (body && body.email && body.password) {
       const email = body.email.toLowerCase().trim();
@@ -380,8 +379,14 @@ app.post("/api/auth/sign-in/email", async (c) => {
           console.error("Auto-provision user error:", e);
         }
       }
+      const freshReq = new Request(c.req.raw.url, {
+        method: c.req.raw.method,
+        headers: c.req.raw.headers,
+        body: JSON.stringify(body)
+      });
+      return auth.handler(freshReq);
     }
-    return auth.handler(rawReq);
+    return auth.handler(c.req.raw);
   } catch (err) {
     return auth.handler(c.req.raw);
   }
