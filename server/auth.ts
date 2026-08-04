@@ -49,6 +49,9 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET || "development-secret-key-streak-app-dev-only",
   baseURL,
   trustedOrigins: getTrustedOrigins,
+  rateLimit: {
+    enabled: false,
+  },
   database: drizzleAdapter(db, {
     provider: "pg", // Use PostgreSQL
     schema: schema
