@@ -859,6 +859,10 @@ if (!process.env.VERCEL && isMainModule && process.env.NODE_ENV !== "test") {
 var listener = getRequestListener(index_default.fetch);
 async function handler(req, res) {
   try {
+    const originalUrl = req.headers["x-matched-path"] || req.headers["x-forwarded-uri"] || req.headers["x-now-route-matches"] || req.url;
+    if (originalUrl && typeof originalUrl === "string" && originalUrl.startsWith("/api")) {
+      req.url = originalUrl;
+    }
     return await listener(req, res);
   } catch (error) {
     console.error("Vercel API error:", error);
