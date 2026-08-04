@@ -61,9 +61,12 @@ app.post('/api/auth/sign-in/email', async (c) => {
         }
       }
 
+      const headers = new Headers(c.req.raw.headers);
+      headers.set('content-type', 'application/json');
+
       const freshReq = new Request(reqUrl, {
         method: c.req.raw.method,
-        headers: c.req.raw.headers,
+        headers,
         body: JSON.stringify(body),
       });
       return auth.handler(freshReq);

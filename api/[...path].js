@@ -383,9 +383,11 @@ app.post("/api/auth/sign-in/email", async (c) => {
           console.error("Auto-provision user error:", e);
         }
       }
+      const headers = new Headers(c.req.raw.headers);
+      headers.set("content-type", "application/json");
       const freshReq2 = new Request(reqUrl, {
         method: c.req.raw.method,
-        headers: c.req.raw.headers,
+        headers,
         body: JSON.stringify(body)
       });
       return auth.handler(freshReq2);
