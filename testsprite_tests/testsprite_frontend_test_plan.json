@@ -1,0 +1,1281 @@
+[
+  {
+    "id": "TC001",
+    "title": "Complete a quest and gain streak progress",
+    "description": "This verifies that completing a quest updates XP and advances the Bara streak for the first completion of the day.",
+    "category": "Quest Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the new quest name field with a unique quest name"
+      },
+      {
+        "type": "action",
+        "description": "Select a quest category"
+      },
+      {
+        "type": "action",
+        "description": "Create the quest"
+      },
+      {
+        "type": "action",
+        "description": "Complete the new quest"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the XP total increases"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the day streak increases"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC002",
+    "title": "Register a new account and reach the dashboard",
+    "description": "This verifies that a guest can create an account with valid details and land on the dashboard after registration.",
+    "category": "Streak & XP System (Bara)",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /register"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the name field with a unique full name"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with a unique username"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with a unique email address"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with a valid password"
+      },
+      {
+        "type": "action",
+        "description": "Submit the registration form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the dashboard is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user can see their streak and XP stats"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC003",
+    "title": "Log in and view the dashboard stats",
+    "description": "This verifies that a returning user can log in and see the main dashboard with streak and XP information.",
+    "category": "Streak & XP System (Bara)",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the dashboard is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user can see their streak and XP stats"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC004",
+    "title": "Log in and reach the dashboard",
+    "description": "This verifies that an existing member can sign in with valid credentials and arrive on the dashboard.",
+    "category": "User Login",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the dashboard is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user's streak and XP stats are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC005",
+    "title": "Log out of the account",
+    "description": "An authenticated user can sign out from the dashboard and return to the home page.",
+    "category": "Logout",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the link to open the dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Click the logout action"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the home page is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user is signed out"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC006",
+    "title": "Create a new daily quest on the dashboard",
+    "description": "This verifies that an authenticated member can add a reusable quest and see it appear in the quest list.",
+    "category": "Quest Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the new quest name field with a unique quest name"
+      },
+      {
+        "type": "action",
+        "description": "Select a quest category"
+      },
+      {
+        "type": "action",
+        "description": "Create the quest"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the new quest appears in the quest list"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC007",
+    "title": "Restore an at-risk streak by completing a quest during grace period",
+    "description": "This verifies that completing a quest during the grace period restores the streak and adds both restore XP and quest XP.",
+    "category": "Streak & XP System (Bara)",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Create a new daily quest on the dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Complete the quest during the active grace period"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the streak is restored"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the XP total increases"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC008",
+    "title": "Show the Bara flame indicator after a sustained streak",
+    "description": "This verifies that the dashboard displays the flame indicator when the streak reaches the threshold for Bara.",
+    "category": "Streak & XP System (Bara)",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the Bara flame indicator is displayed when the streak is at least three days"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC009",
+    "title": "Search for a friend and send a request",
+    "description": "This verifies that a user can search for another user and send a friend request from the dashboard.",
+    "category": "Friend System",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the friend search modal"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the friend search field with a valid username or name of at least three characters"
+      },
+      {
+        "type": "action",
+        "description": "Search for users"
+      },
+      {
+        "type": "action",
+        "description": "Send a friend request to a matching user"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the search results are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the request is shown as sent"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC010",
+    "title": "Switch between leaderboard tabs on the dashboard",
+    "description": "This verifies that the dashboard leaderboard can switch between global and friends rankings.",
+    "category": "Leaderboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the leaderboard panel on the dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Open the global leaderboard tab"
+      },
+      {
+        "type": "action",
+        "description": "Open the friends leaderboard tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the leaderboard list is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the visible rankings update when switching tabs"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC011",
+    "title": "Edit profile details and save changes",
+    "description": "This verifies that a user can update their profile name and username and see the changes reflected on the profile page.",
+    "category": "Profile",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the profile page"
+      },
+      {
+        "type": "action",
+        "description": "Enter a new display name"
+      },
+      {
+        "type": "action",
+        "description": "Enter a new username"
+      },
+      {
+        "type": "action",
+        "description": "Save the profile changes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the updated profile information is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the profile stats and achievements section remain visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC012",
+    "title": "View profile details and stats",
+    "description": "An authenticated user can open the profile page and see their personal details, streak stats, and achievements section.",
+    "category": "User Profile",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the link to open the profile page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the profile details and streak stats are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the achievements section is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC013",
+    "title": "Open the global leaderboard on the dashboard",
+    "description": "This verifies that a logged-in user can view the global leaderboard tab from the dashboard.",
+    "category": "Quest Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the global leaderboard tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the global leaderboard is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify leaderboard entries are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC014",
+    "title": "Show the at-risk streak state after missing a day",
+    "description": "This verifies that a returning user sees the streak marked at risk with a grace period banner after missing a day.",
+    "category": "Streak & XP System (Bara)",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a streak at-risk state is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a grace period banner is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC015",
+    "title": "View leaderboard rank streak and XP details",
+    "description": "This verifies that the leaderboard shows each user's rank, name, streak, and XP information.",
+    "category": "Leaderboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the leaderboard panel on the dashboard"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify leaderboard entries are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify each visible entry shows rank, streak, and XP information"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC016",
+    "title": "Open the friends leaderboard on the dashboard",
+    "description": "This verifies that a logged-in user can switch to the friends leaderboard tab from the dashboard.",
+    "category": "Quest Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the friends leaderboard tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the friends leaderboard is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify friend entries or an empty state are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC017",
+    "title": "Update profile name and username",
+    "description": "An authenticated user can edit their profile information and see the updated name and username saved on the profile page.",
+    "category": "User Profile",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the link to open the profile page"
+      },
+      {
+        "type": "action",
+        "description": "Enter edit mode for the profile"
+      },
+      {
+        "type": "action",
+        "description": "Change the name and username to new valid values"
+      },
+      {
+        "type": "action",
+        "description": "Save the profile changes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the updated profile information is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the edited values persist after saving"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC018",
+    "title": "Reject a friend request from the dashboard",
+    "description": "This verifies that a user can review incoming requests and reject one so it is removed from the list.",
+    "category": "Friend System",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open incoming friend requests"
+      },
+      {
+        "type": "action",
+        "description": "Reject one incoming friend request"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the rejected request is removed from the list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the incoming requests view remains available"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC019",
+    "title": "View profile streak XP and achievements summary",
+    "description": "This verifies that the profile page shows the user's current streak, max streak, total XP, and achievements area.",
+    "category": "Profile",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the profile page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the current streak, max streak, and total XP are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the achievements section is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC020",
+    "title": "Keep profile stats visible while viewing the page",
+    "description": "An authenticated user can view current streak, max streak, and total XP from the profile page.",
+    "category": "User Profile",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the link to open the profile page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify current streak, max streak, and total XP are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the profile stats remain visible after the page loads"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC021",
+    "title": "Edit a reusable quest and save the changes",
+    "description": "This verifies that an authenticated member can update an existing quest's details and see the revised quest in the list.",
+    "category": "Quest Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the new quest name field with a unique quest name"
+      },
+      {
+        "type": "action",
+        "description": "Select a quest category"
+      },
+      {
+        "type": "action",
+        "description": "Create the quest"
+      },
+      {
+        "type": "action",
+        "description": "Open edit mode for the quest"
+      },
+      {
+        "type": "action",
+        "description": "Change the quest name or category"
+      },
+      {
+        "type": "action",
+        "description": "Save the quest changes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the updated quest appears in the quest list"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC022",
+    "title": "Delete a quest after confirming the removal",
+    "description": "This verifies that an authenticated member can delete an existing quest and have it removed from the dashboard after confirmation.",
+    "category": "Quest Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the new quest name field with a unique quest name"
+      },
+      {
+        "type": "action",
+        "description": "Select a quest category"
+      },
+      {
+        "type": "action",
+        "description": "Create the quest"
+      },
+      {
+        "type": "action",
+        "description": "Open delete flow for the quest"
+      },
+      {
+        "type": "action",
+        "description": "Confirm the deletion"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the quest is removed from the quest list"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC023",
+    "title": "View quest completion history",
+    "description": "This verifies that an authenticated member can open a quest's history and see previous completions after completing the quest.",
+    "category": "Quest Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the new quest name field with a unique quest name"
+      },
+      {
+        "type": "action",
+        "description": "Select a quest category"
+      },
+      {
+        "type": "action",
+        "description": "Create the quest"
+      },
+      {
+        "type": "action",
+        "description": "Complete the new quest"
+      },
+      {
+        "type": "action",
+        "description": "Open the quest history"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the quest completion history is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC024",
+    "title": "Cancel profile edits without saving",
+    "description": "An authenticated user can abandon profile edits and keep the original profile information unchanged.",
+    "category": "User Profile",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the link to open the profile page"
+      },
+      {
+        "type": "action",
+        "description": "Enter edit mode for the profile"
+      },
+      {
+        "type": "action",
+        "description": "Change the name and username to new valid values"
+      },
+      {
+        "type": "action",
+        "description": "Cancel profile editing"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the original profile information is still displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the unsaved changes are not shown"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC025",
+    "title": "View an empty achievements section for a new profile",
+    "description": "This verifies that a newly registered user can open the profile and see an empty achievements state before earning any badges.",
+    "category": "Quest Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /register"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the full name field with a new user name"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with a unique username"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with a new email address"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with a valid password"
+      },
+      {
+        "type": "action",
+        "description": "Submit the registration form"
+      },
+      {
+        "type": "action",
+        "description": "Open the profile page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the achievements section is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an empty achievements state is visible"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC026",
+    "title": "Show no results for an unmatched friend search",
+    "description": "This verifies that searching for a non-matching user shows an empty state instead of results.",
+    "category": "Friend System",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the friend search modal"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the friend search field with a valid three-character search term that matches no users"
+      },
+      {
+        "type": "action",
+        "description": "Search for users"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an empty state message is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no friend results are shown"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC027",
+    "title": "Reject a username that is already taken during registration",
+    "description": "This verifies that registration is blocked and a username availability error is shown when the chosen username already exists.",
+    "category": "User Registration",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /register"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the full name field with a new user name"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with a username already in use"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with a new email address"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with a valid password"
+      },
+      {
+        "type": "action",
+        "description": "Submit the registration form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a username availability error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the account is not created"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC028",
+    "title": "Show profile achievements empty state for a new user",
+    "description": "A newly authenticated user can open the profile page and see an empty achievements state when no achievements are unlocked yet.",
+    "category": "User Profile",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the link to open the profile page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the achievements section shows an empty state message"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no unlocked achievements are displayed"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC029",
+    "title": "Reject a password that is too short during registration",
+    "description": "This verifies that registration is blocked and a password validation error is shown when the password does not meet the minimum length.",
+    "category": "User Registration",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /register"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the full name field with a new user name"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with a unique username"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with a new email address"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with a short password"
+      },
+      {
+        "type": "action",
+        "description": "Submit the registration form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a password validation error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the account is not created"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC030",
+    "title": "Show an invalid login error",
+    "description": "This verifies that signing in with incorrect credentials is blocked and an authentication error is shown.",
+    "category": "User Login",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with a non-existent email address"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with an incorrect password"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an invalid credentials error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the dashboard is not displayed"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC031",
+    "title": "Reject a friend search shorter than three characters",
+    "description": "This verifies that the friend search only accepts queries with at least three characters and shows a validation or empty result state for shorter input.",
+    "category": "Quest Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the friend search area"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the friend search field with a short query"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a friend search validation or empty state is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no friend request can be sent"
+      }
+    ],
+    "priority": "Low"
+  }
+]

@@ -100,14 +100,21 @@ const Dashboard = () => {
     }
   }, [user, profile, navigate]);
 
+  const parseLeaderboardData = (res: any): LeaderboardUser[] => {
+    if (Array.isArray(res)) return res;
+    if (Array.isArray(res?.leaderboard)) return res.leaderboard;
+    if (Array.isArray(res?.data)) return res.data;
+    return [];
+  };
+
   const fetchLeaderboardsOnly = async () => {
     try {
       const [leaderboardRes, friendsRes] = await Promise.all([
         fetch('/api/leaderboard').then(r => r.json()),
         fetch('/api/leaderboard?tab=friends').then(r => r.json())
       ]);
-      if (Array.isArray(leaderboardRes)) setLeaderboard(leaderboardRes);
-      if (Array.isArray(friendsRes)) setFriendsLeaderboard(friendsRes);
+      setLeaderboard(parseLeaderboardData(leaderboardRes));
+      setFriendsLeaderboard(parseLeaderboardData(friendsRes));
     } catch(e) {
       console.error(e);
     }
@@ -124,16 +131,10 @@ const Dashboard = () => {
       ]);
       
       if (questsRes.completedIds) {
-        // completedIds is an array of IDs, but a quest can be completed multiple times.
-        // We want to count total completions for today to display "X / Y" where X can be greater than Y.
-        // For UI purposes, we'll store a Map or just a count for each quest if needed.
-        // Actually, let's keep it simple: completedIds is an array of strings. We can store it directly.
-        // We will change completedQuestIds to be an array or map if we need exact counts.
-        // Wait, the API returns `completedIds` as an array of all completions today.
         setCompletedQuestIds(new Set(questsRes.completedIds)); 
       }
-      if (Array.isArray(leaderboardRes)) setLeaderboard(leaderboardRes);
-      if (Array.isArray(friendsRes)) setFriendsLeaderboard(friendsRes);
+      setLeaderboard(parseLeaderboardData(leaderboardRes));
+      setFriendsLeaderboard(parseLeaderboardData(friendsRes));
       if (Array.isArray(requestsRes)) setFriendRequests(requestsRes);
     } catch (e) {
       console.error(e);

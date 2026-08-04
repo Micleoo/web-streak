@@ -1,0 +1,47 @@
+[
+  {
+    "id": "TC001",
+    "title": "getapihealthcheckreturnsstatusstring",
+    "description": "Verify that GET / returns a 200 status with a status string indicating the server is available and reachable."
+  },
+  {
+    "id": "TC002",
+    "title": "postapiauthsignupemailcreatesuserwithvaliddata",
+    "description": "Test POST /api/auth/sign-up/email with valid name, email, and password creates a new user and returns 200 with auth object."
+  },
+  {
+    "id": "TC003",
+    "title": "postapiauthsigninemailauthenticatesuserwithvalidcredentials",
+    "description": "Test POST /api/auth/sign-in/email with valid email and password returns 200 with auth object and active session."
+  },
+  {
+    "id": "TC004",
+    "title": "getapicheckusernameusernamechecksavailability",
+    "description": "Verify GET /api/check-username/:username returns 200 with available true if username is not taken."
+  },
+  {
+    "id": "TC005",
+    "title": "getapimefetchesauthenticateduserprofile",
+    "description": "Verify GET /api/me with valid auth session returns 200 with user profile, streak, XP, and favorite categories data."
+  },
+  {
+    "id": "TC006",
+    "title": "putapimeupdatesuserprofilewithvaliddata",
+    "description": "Test PUT /api/me updates user profile name, username, and favorite categories with valid data and returns 200."
+  },
+  {
+    "id": "TC007",
+    "title": "postapiquestsidcheckcompletesquestandupdatesstreak",
+    "description": "Verify POST /api/quests/:id/check completes the quest for today, calculates XP gain, updates streak, and returns completion details."
+  },
+  {
+    "id": "TC008",
+    "title": "getapileaderboardretrievestoprankedusers",
+    "description": "Test GET /api/leaderboard with authenticated session returns 200 with leaderboard data for global or friends tab."
+  },
+  {
+    "id": "TC009",
+    "title": "postapicronidailyrunsdailymaintenancejob",
+    "description": "Verify POST /api/cron/daily runs the daily maintenance job, updates streak risk states, and returns success with streaksUpdated count."
+  }
+]
