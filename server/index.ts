@@ -738,6 +738,9 @@ app.post('/api/cron/daily', async (c) => {
   });
 });
 
+app.get('/api', (c) => c.json({ status: 'ok', message: 'Streak API is running!' }));
+app.get('/api/', (c) => c.json({ status: 'ok', message: 'Streak API is running!' }));
+app.get('/api/health', (c) => c.json({ status: 'ok' }));
 app.get('/', (c) => c.text('Streak API is running!'));
 
 export default app;
@@ -746,7 +749,7 @@ import { fileURLToPath } from 'node:url';
 
 const isMainModule = process.argv[1] === fileURLToPath(import.meta.url);
 
-if (isMainModule && process.env.NODE_ENV !== 'test') {
+if (!process.env.VERCEL && isMainModule && process.env.NODE_ENV !== 'test') {
   const port = 3000;
   console.log(`Server is running on port ${port}`);
 
