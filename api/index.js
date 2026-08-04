@@ -356,6 +356,7 @@ app.use("*", cors({
 app.post("/api/auth/sign-in/email", async (c) => {
   try {
     const body = await c.req.json().catch(() => null);
+    const reqUrl = c.req.header("x-forwarded-proto") === "https" || process.env.VERCEL ? c.req.raw.url.replace(/^http:/, "https:") : c.req.raw.url;
     if (body && body.email && body.password) {
       const email = body.email.toLowerCase().trim();
       const existing = await db.select().from(user).where(eq2(user.email, email)).limit(1);
@@ -382,26 +383,33 @@ app.post("/api/auth/sign-in/email", async (c) => {
           console.error("Auto-provision user error:", e);
         }
       }
-      const freshReq = new Request(c.req.raw.url, {
+      const freshReq2 = new Request(reqUrl, {
         method: c.req.raw.method,
         headers: c.req.raw.headers,
         body: JSON.stringify(body)
       });
-      return auth.handler(freshReq);
+      return auth.handler(freshReq2);
     }
-    return auth.handler(c.req.raw);
+    const freshReq = reqUrl !== c.req.raw.url ? new Request(reqUrl, c.req.raw) : c.req.raw;
+    return auth.handler(freshReq);
   } catch (err) {
     return auth.handler(c.req.raw);
   }
 });
 app.all("/api/auth/*", (c) => {
-  return auth.handler(c.req.raw);
+  const reqUrl = c.req.header("x-forwarded-proto") === "https" || process.env.VERCEL ? c.req.raw.url.replace(/^http:/, "https:") : c.req.raw.url;
+  const targetReq = reqUrl !== c.req.raw.url ? new Request(reqUrl, c.req.raw) : c.req.raw;
+  return auth.handler(targetReq);
 });
 app.all("/api/auth", (c) => {
-  return auth.handler(c.req.raw);
+  const reqUrl = c.req.header("x-forwarded-proto") === "https" || process.env.VERCEL ? c.req.raw.url.replace(/^http:/, "https:") : c.req.raw.url;
+  const targetReq = reqUrl !== c.req.raw.url ? new Request(reqUrl, c.req.raw) : c.req.raw;
+  return auth.handler(targetReq);
 });
 app.all("/auth/*", (c) => {
-  return auth.handler(c.req.raw);
+  const reqUrl = c.req.header("x-forwarded-proto") === "https" || process.env.VERCEL ? c.req.raw.url.replace(/^http:/, "https:") : c.req.raw.url;
+  const targetReq = reqUrl !== c.req.raw.url ? new Request(reqUrl, c.req.raw) : c.req.raw;
+  return auth.handler(targetReq);
 });
 var requireAuth = async (c, next) => {
   const session2 = await auth.api.getSession({
