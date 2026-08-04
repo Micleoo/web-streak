@@ -625,10 +625,17 @@ export default app;
 
 import { fileURLToPath } from 'node:url';
 
-const isMainModule = process.argv[1] === fileURLToPath(import.meta.url);
+let isMainModule = false;
+try {
+  if (process.argv[1] && import.meta.url) {
+    isMainModule = process.argv[1] === fileURLToPath(import.meta.url);
+  }
+} catch (e) {
+  isMainModule = false;
+}
 
-if (isMainModule && process.env.NODE_ENV !== 'test') {
-  const port = 3000;
+if (!process.env.VERCEL && isMainModule && process.env.NODE_ENV !== 'test') {
+  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   console.log(`Server is running on port ${port}`);
 
   serve({
