@@ -355,14 +355,13 @@ app.use("*", cors({
 }));
 app.post("/api/auth/sign-in/email", async (c) => {
   try {
-    const body = await c.req.json().catch(() => null);
-    const reqUrl = c.req.header("x-forwarded-proto") === "https" || process.env.VERCEL ? c.req.raw.url.replace(/^http:/, "https:") : c.req.raw.url;
+    const body = await c.req.json().catch(() => ({}));
     if (body && body.email && body.password) {
       const email = body.email.toLowerCase().trim();
       const existing = await db.select().from(user).where(eq2(user.email, email)).limit(1);
       if (existing.length === 0) {
         try {
-          const userName = email.split("@")[0] || "User";
+          const userName = body.name || email.split("@")[0] || "User";
           const cleanUsername = email.split("@")[0]?.replace(/[^a-zA-Z0-9_]/g, "") || `user_${Date.now().toString().slice(-4)}`;
           await auth.api.signUpEmail({
             body: {
@@ -383,19 +382,81 @@ app.post("/api/auth/sign-in/email", async (c) => {
           console.error("Auto-provision user error:", e);
         }
       }
-      const headers = new Headers(c.req.raw.headers);
-      headers.set("content-type", "application/json");
-      const freshReq2 = new Request(reqUrl, {
-        method: c.req.raw.method,
-        headers,
-        body: JSON.stringify(body)
+      const response = await auth.api.signInEmail({
+        body: {
+          email: body.email,
+          password: body.password
+        },
+        headers: c.req.raw.headers,
+        asResponse: true
       });
-      return auth.handler(freshReq2);
+      return response;
     }
-    const freshReq = reqUrl !== c.req.raw.url ? new Request(reqUrl, c.req.raw) : c.req.raw;
-    return auth.handler(freshReq);
+    return c.json({ error: "Missing email or password" }, 400);
   } catch (err) {
-    return auth.handler(c.req.raw);
+    console.error("Sign-in error:", err);
+    return c.json({ error: err?.message || "Authentication failed" }, err?.status || 500);
+  }
+});
+app.post("/api/auth/sign-up/email", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    if (body && body.email && body.password) {
+      const name = body.name || body.email.split("@")[0] || "User";
+      const cleanUsername = (body.username || body.email.split("@")[0] || `user_${Date.now()}`).replace(/[^a-zA-Z0-9_]/g, "");
+      const response = await auth.api.signUpEmail({
+        body: {
+          email: body.email,
+          password: body.password,
+          name
+        },
+        headers: c.req.raw.headers,
+        asResponse: true
+      });
+      await db.update(user).set({
+        username: cleanUsername,
+        currentStreak: 0,
+        maxStreak: 0,
+        totalXp: 0
+      }).where(eq2(user.email, body.email)).catch(() => {
+      });
+      return response;
+    }
+    return c.json({ error: "Missing email or password" }, 400);
+  } catch (err) {
+    console.error("Sign-up error:", err);
+    return c.json({ error: err?.message || "Registration failed" }, err?.status || 500);
+  }
+});
+app.post("/api/auth/sign-out", async (c) => {
+  try {
+    const response = await auth.api.signOut({
+      headers: c.req.raw.headers,
+      asResponse: true
+    });
+    return response;
+  } catch (err) {
+    return c.json({ success: true });
+  }
+});
+app.get("/api/auth/get-session", async (c) => {
+  try {
+    const session2 = await auth.api.getSession({
+      headers: c.req.raw.headers
+    });
+    return c.json(session2 || null);
+  } catch (err) {
+    return c.json(null);
+  }
+});
+app.get("/api/auth/session", async (c) => {
+  try {
+    const session2 = await auth.api.getSession({
+      headers: c.req.raw.headers
+    });
+    return c.json(session2 || null);
+  } catch (err) {
+    return c.json(null);
   }
 });
 app.all("/api/auth/*", (c) => {
