@@ -69,7 +69,10 @@ app.post('/api/auth/sign-in/email', async (c) => {
     return c.json({ error: 'Missing email or password' }, 400);
   } catch (err: any) {
     console.error('Sign-in error:', err);
-    return c.json({ error: err?.message || 'Authentication failed' }, err?.status || 500);
+    return c.json({
+      error: err?.message || 'Authentication failed',
+      cause: err?.cause?.message || err?.cause || err?.stack,
+    }, err?.status || 500);
   }
 });
 
