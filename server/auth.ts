@@ -3,7 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "./db";
 import * as schema from "./db/schema";
 
-const getTrustedOrigins = (request?: Request): string[] => {
+export const getTrustedOrigins = (): string[] => {
   const origins = [
     "http://localhost:5173",
     "http://localhost:3000",
@@ -11,10 +11,16 @@ const getTrustedOrigins = (request?: Request): string[] => {
     "https://web-streak.vercel.app",
   ];
   if (process.env.APP_URL) {
-    origins.push(process.env.APP_URL.replace(/\/+$/, ""));
+    try {
+      const url = process.env.APP_URL.startsWith("http") ? process.env.APP_URL : `https://${process.env.APP_URL}`;
+      origins.push(new URL(url).origin);
+    } catch {}
   }
   if (process.env.VERCEL_URL) {
-    origins.push(`https://${process.env.VERCEL_URL.replace(/^https?:\/\//, "").replace(/\/+$/, "")}`);
+    try {
+      const url = process.env.VERCEL_URL.startsWith("http") ? process.env.VERCEL_URL : `https://${process.env.VERCEL_URL}`;
+      origins.push(new URL(url).origin);
+    } catch {}
   }
   if (process.env.BETTER_AUTH_URL) {
     try {
@@ -22,11 +28,13 @@ const getTrustedOrigins = (request?: Request): string[] => {
       origins.push(new URL(url).origin);
     } catch {}
   }
-  if (request) {
-    const origin = request.headers.get("origin");
-    if (origin) origins.push(origin);
-  }
-  return [...new Set(origins)];
+  return [...new Set(origins.filter(Boolean))];
+};
+
+export const isOriginAllowed = (origin: string | undefined): boolean => {
+  if (!origin) return false;
+  const trusted = getTrustedOrigins();
+  return trusted.includes(origin);
 };
 
 const getBaseURL = (): string | undefined => {
@@ -38,6 +46,16 @@ const getBaseURL = (): string | undefined => {
     url = `https://${url}`;
   }
   return url.replace(/\/api\/auth\/?$/, "").replace(/\/+$/, "");
+};
+
+const getAuthSecret = (): string => {
+  if (process.env.BETTER_AUTH_SECRET) {
+    return process.env.BETTER_AUTH_SECRET;
+  }
+  if (process.env.NODE_ENV === "production" && !process.env.VERCEL_ENV) {
+    console.error("⚠️ WARNING: BETTER_AUTH_SECRET is not set in production!");
+  }
+  return process.env.BETTER_AUTH_SECRET || "development-secret-key-streak-app-dev-only";
 };
 
 const socialProviders: Record<string, any> = {};
@@ -54,14 +72,16 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 const baseURL = getBaseURL();
 
 export const auth = betterAuth({
-  secret: process.env.BETTER_AUTH_SECRET || "development-secret-key-streak-app-dev-only",
+  secret: getAuthSecret(),
   baseURL,
   trustedOrigins: getTrustedOrigins,
   rateLimit: {
-    enabled: false,
+    enabled: true,
+    window: 60,
+    max: 50,
   },
   database: drizzleAdapter(db, {
-    provider: "pg", // Use PostgreSQL
+    provider: "pg",
     schema: schema
   }),
   emailAndPassword: {
@@ -69,4 +89,3 @@ export const auth = betterAuth({
   },
   socialProviders: Object.keys(socialProviders).length > 0 ? socialProviders : undefined,
 });
-

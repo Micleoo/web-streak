@@ -29,8 +29,7 @@ export default async function handler(req: any, res: any) {
       res.statusCode = 500;
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({
-        error: error?.message || 'Internal Server Error',
-        stack: error?.stack,
+        error: process.env.NODE_ENV === 'development' ? (error?.message || 'Internal Server Error') : 'Internal Server Error',
       }));
     }
   }

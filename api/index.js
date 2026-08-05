@@ -11,6 +11,7 @@ import { getRequestListener } from "@hono/node-server";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { logger } from "hono/logger";
 
 // server/auth.ts
 import { betterAuth } from "better-auth";
@@ -126,12 +127,13 @@ connectionString = connectionString.replace(/\/postgr(\?|$)/, "/postgres$1");
 var client = postgres(connectionString, {
   prepare: false,
   ssl: "require",
-  max: process.env.VERCEL ? 1 : 10
+  max: process.env.VERCEL ? 1 : process.env.NODE_ENV === "test" ? 1 : 10,
+  idle_timeout: process.env.NODE_ENV === "test" ? 1 : 10
 });
 var db = drizzle(client, { schema: schema_exports });
 
 // server/auth.ts
-var getTrustedOrigins = (request) => {
+var getTrustedOrigins = () => {
   const origins = [
     "http://localhost:5173",
     "http://localhost:3000",
@@ -139,10 +141,18 @@ var getTrustedOrigins = (request) => {
     "https://web-streak.vercel.app"
   ];
   if (process.env.APP_URL) {
-    origins.push(process.env.APP_URL.replace(/\/+$/, ""));
+    try {
+      const url = process.env.APP_URL.startsWith("http") ? process.env.APP_URL : `https://${process.env.APP_URL}`;
+      origins.push(new URL(url).origin);
+    } catch {
+    }
   }
   if (process.env.VERCEL_URL) {
-    origins.push(`https://${process.env.VERCEL_URL.replace(/^https?:\/\//, "").replace(/\/+$/, "")}`);
+    try {
+      const url = process.env.VERCEL_URL.startsWith("http") ? process.env.VERCEL_URL : `https://${process.env.VERCEL_URL}`;
+      origins.push(new URL(url).origin);
+    } catch {
+    }
   }
   if (process.env.BETTER_AUTH_URL) {
     try {
@@ -151,11 +161,12 @@ var getTrustedOrigins = (request) => {
     } catch {
     }
   }
-  if (request) {
-    const origin = request.headers.get("origin");
-    if (origin) origins.push(origin);
-  }
-  return [...new Set(origins)];
+  return [...new Set(origins.filter(Boolean))];
+};
+var isOriginAllowed = (origin) => {
+  if (!origin) return false;
+  const trusted = getTrustedOrigins();
+  return trusted.includes(origin);
 };
 var getBaseURL = () => {
   let url = process.env.BETTER_AUTH_URL || process.env.APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : void 0);
@@ -166,6 +177,15 @@ var getBaseURL = () => {
     url = `https://${url}`;
   }
   return url.replace(/\/api\/auth\/?$/, "").replace(/\/+$/, "");
+};
+var getAuthSecret = () => {
+  if (process.env.BETTER_AUTH_SECRET) {
+    return process.env.BETTER_AUTH_SECRET;
+  }
+  if (process.env.NODE_ENV === "production" && !process.env.VERCEL_ENV) {
+    console.error("\u26A0\uFE0F WARNING: BETTER_AUTH_SECRET is not set in production!");
+  }
+  return process.env.BETTER_AUTH_SECRET || "development-secret-key-streak-app-dev-only";
 };
 var socialProviders = {};
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
@@ -178,15 +198,16 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 }
 var baseURL = getBaseURL();
 var auth = betterAuth({
-  secret: process.env.BETTER_AUTH_SECRET || "development-secret-key-streak-app-dev-only",
+  secret: getAuthSecret(),
   baseURL,
   trustedOrigins: getTrustedOrigins,
   rateLimit: {
-    enabled: false
+    enabled: true,
+    window: 60,
+    max: 50
   },
   database: drizzleAdapter(db, {
     provider: "pg",
-    // Use PostgreSQL
     schema: schema_exports
   }),
   emailAndPassword: {
@@ -198,6 +219,116 @@ var auth = betterAuth({
 // server/index.ts
 import { eq as eq2, desc, and as and2, gte, ilike, or, inArray, gt, lt, isNull } from "drizzle-orm";
 import dotenv2 from "dotenv";
+
+// server/validators.ts
+import { z } from "zod";
+var USERNAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]{2,19}$/;
+var usernameParamSchema = z.string().trim().regex(USERNAME_REGEX, {
+  message: "Username harus 3-20 karakter alfanumerik (diawali huruf)"
+});
+var onboardingSchema = z.object({
+  username: z.string().trim().regex(USERNAME_REGEX, {
+    message: "Format username tidak valid (3-20 karakter alfanumerik, diawali huruf)"
+  }),
+  favoriteCategories: z.array(z.string().trim().max(50)).max(10).optional()
+});
+var updateProfileSchema = z.object({
+  name: z.string().trim().min(1, "Nama tidak boleh kosong").max(100, "Nama maksimal 100 karakter").optional(),
+  username: z.string().trim().regex(USERNAME_REGEX, {
+    message: "Username harus 3-20 karakter alfanumerik (diawali huruf)"
+  }).optional(),
+  favoriteCategories: z.union([
+    z.array(z.string().trim().max(50)).max(10),
+    z.string().max(500)
+  ]).optional()
+});
+var sanitizeMinutes = z.preprocess((val) => {
+  if (val === void 0 || val === null || val === "") return null;
+  const num = typeof val === "string" ? parseInt(val, 10) : Number(val);
+  return isNaN(num) ? null : num;
+}, z.number().int().min(1, "Estimasi waktu minimal 1 menit").max(1440, "Estimasi waktu maksimal 1440 menit (24 jam)").nullable().optional());
+var createQuestSchema = z.object({
+  name: z.string().trim().min(1, "Nama quest wajib diisi").max(150, "Nama quest maksimal 150 karakter").optional(),
+  title: z.string().trim().min(1).max(150).optional(),
+  category: z.string().trim().min(1).max(50).default("coding"),
+  estimatedMinutes: sanitizeMinutes,
+  timeGoalMinutes: sanitizeMinutes,
+  duration: sanitizeMinutes
+}).refine((data) => Boolean(data.name || data.title), {
+  message: "Nama quest wajib diisi",
+  path: ["name"]
+});
+var updateQuestSchema = z.object({
+  name: z.string().trim().min(1, "Nama quest wajib diisi").max(150, "Nama quest maksimal 150 karakter").optional(),
+  title: z.string().trim().min(1).max(150).optional(),
+  category: z.string().trim().min(1).max(50).default("coding"),
+  estimatedMinutes: sanitizeMinutes,
+  timeGoalMinutes: sanitizeMinutes,
+  duration: sanitizeMinutes
+}).refine((data) => Boolean(data.name || data.title), {
+  message: "Nama quest wajib diisi",
+  path: ["name"]
+});
+var friendRequestSchema = z.object({
+  friendId: z.string().trim().min(1, "Invalid friend ID").max(100)
+});
+var friendRespondSchema = z.object({
+  requestId: z.string().trim().min(1, "Invalid request ID").max(100),
+  action: z.enum(["accept", "reject"], {
+    message: "Aksi harus 'accept' atau 'reject'"
+  })
+});
+function escapeSqlLike(input) {
+  return input.replace(/[%_\\]/g, "\\$&");
+}
+
+// server/rate-limiter.ts
+function createRateLimiter(options) {
+  const { windowMs, max, message = "Terlalu banyak permintaan. Silakan coba beberapa saat lagi." } = options;
+  const ipStore = /* @__PURE__ */ new Map();
+  if (process.env.NODE_ENV !== "test") {
+    const timer = setInterval(() => {
+      const now = Date.now();
+      for (const [ip, data] of ipStore.entries()) {
+        if (now > data.resetTime) {
+          ipStore.delete(ip);
+        }
+      }
+    }, 12e4);
+    if (typeof timer.unref === "function") {
+      timer.unref();
+    }
+  }
+  return async function rateLimiter(c, next) {
+    const forwardedFor = c.req.header("x-forwarded-for");
+    const realIp = c.req.header("x-real-ip");
+    const ip = (forwardedFor ? forwardedFor.split(",")[0].trim() : realIp) || "127.0.0.1";
+    const now = Date.now();
+    let clientRecord = ipStore.get(ip);
+    if (!clientRecord || now > clientRecord.resetTime) {
+      clientRecord = {
+        count: 1,
+        resetTime: now + windowMs
+      };
+      ipStore.set(ip, clientRecord);
+    } else {
+      clientRecord.count += 1;
+    }
+    const remaining = Math.max(0, max - clientRecord.count);
+    const resetInSec = Math.ceil((clientRecord.resetTime - now) / 1e3);
+    c.header("X-RateLimit-Limit", max.toString());
+    c.header("X-RateLimit-Remaining", remaining.toString());
+    c.header("X-RateLimit-Reset", Math.ceil(clientRecord.resetTime / 1e3).toString());
+    if (clientRecord.count > max) {
+      c.header("Retry-After", resetInSec.toString());
+      return c.json({
+        error: message,
+        retryAfterSeconds: resetInSec
+      }, 429);
+    }
+    await next();
+  };
+}
 
 // server/seed.ts
 import { eq, and } from "drizzle-orm";
@@ -355,88 +486,82 @@ async function seedDatabase() {
 import { fileURLToPath } from "node:url";
 dotenv2.config();
 var app = new Hono();
+app.use("*", logger());
 app.use("*", cors({
-  origin: (origin) => origin || "*",
+  origin: (origin) => {
+    if (!origin) return "http://localhost:5173";
+    return isOriginAllowed(origin) ? origin : null;
+  },
   credentials: true,
   allowHeaders: ["Content-Type", "Authorization", "Cookie"],
   allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
 }));
+var apiLimiter = createRateLimiter({
+  windowMs: 60 * 1e3,
+  max: 120,
+  message: "Terlalu banyak permintaan API. Silakan coba lagi nanti."
+});
+var authLimiter = createRateLimiter({
+  windowMs: 60 * 1e3,
+  max: 15,
+  message: "Terlalu banyak percobaan autentikasi. Silakan tunggu 1 menit."
+});
+app.use("/api/*", apiLimiter);
+app.use("/api/auth/sign-in/*", authLimiter);
+app.use("/api/auth/sign-up/*", authLimiter);
 app.post("/api/auth/sign-in/email", async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}));
-    if (body && body.email && body.password) {
-      const email = body.email.toLowerCase().trim();
-      const existing = await db.select().from(user).where(eq2(user.email, email)).limit(1);
-      if (existing.length === 0) {
-        try {
-          const userName = body.name || email.split("@")[0] || "User";
-          const cleanUsername = email.split("@")[0]?.replace(/[^a-zA-Z0-9_]/g, "") || `user_${Date.now().toString().slice(-4)}`;
-          await auth.api.signUpEmail({
-            body: {
-              email: body.email,
-              password: body.password,
-              name: userName
-            },
-            headers: c.req.raw.headers
-          });
-          await db.update(user).set({
-            username: cleanUsername,
-            currentStreak: 3,
-            maxStreak: 5,
-            totalXp: 120
-          }).where(eq2(user.email, body.email)).catch(() => {
-          });
-        } catch (e) {
-          console.error("Auto-provision user error:", e);
-        }
-      }
-      const response = await auth.api.signInEmail({
-        body: {
-          email: body.email,
-          password: body.password
-        },
-        headers: c.req.raw.headers,
-        asResponse: true
-      });
-      return response;
+    if (!body?.email || !body?.password) {
+      return c.json({ error: "Email dan password wajib diisi" }, 400);
     }
-    return c.json({ error: "Missing email or password" }, 400);
+    const response = await auth.api.signInEmail({
+      body: {
+        email: body.email.toLowerCase().trim(),
+        password: body.password
+      },
+      headers: c.req.raw.headers,
+      asResponse: true
+    });
+    return response;
   } catch (err) {
-    console.error("Sign-in error:", err);
+    console.error("Sign-in error:", err?.message || err);
     return c.json({
-      error: err?.message || "Authentication failed",
-      cause: err?.cause?.message || err?.cause || err?.stack
-    }, err?.status || 500);
+      error: "Email atau password salah"
+    }, 401);
   }
 });
 app.post("/api/auth/sign-up/email", async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}));
-    if (body && body.email && body.password) {
-      const name = body.name || body.email.split("@")[0] || "User";
-      const cleanUsername = (body.username || body.email.split("@")[0] || `user_${Date.now()}`).replace(/[^a-zA-Z0-9_]/g, "");
-      const response = await auth.api.signUpEmail({
-        body: {
-          email: body.email,
-          password: body.password,
-          name
-        },
-        headers: c.req.raw.headers,
-        asResponse: true
-      });
-      await db.update(user).set({
-        username: cleanUsername,
-        currentStreak: 0,
-        maxStreak: 0,
-        totalXp: 0
-      }).where(eq2(user.email, body.email)).catch(() => {
-      });
-      return response;
+    if (!body?.email || !body?.password) {
+      return c.json({ error: "Email dan password wajib diisi" }, 400);
     }
-    return c.json({ error: "Missing email or password" }, 400);
+    if (typeof body.password !== "string" || body.password.length < 6) {
+      return c.json({ error: "Password minimal 6 karakter" }, 400);
+    }
+    const name = (body.name || body.email.split("@")[0] || "User").trim().slice(0, 100);
+    const cleanUsername = (body.username || body.email.split("@")[0] || `user_${Date.now()}`).replace(/[^a-zA-Z0-9_]/g, "").slice(0, 20);
+    const response = await auth.api.signUpEmail({
+      body: {
+        email: body.email.toLowerCase().trim(),
+        password: body.password,
+        name
+      },
+      headers: c.req.raw.headers,
+      asResponse: true
+    });
+    await db.update(user).set({
+      username: cleanUsername,
+      currentStreak: 0,
+      maxStreak: 0,
+      totalXp: 0
+    }).where(eq2(user.email, body.email.toLowerCase().trim())).catch(() => {
+    });
+    return response;
   } catch (err) {
-    console.error("Sign-up error:", err);
-    return c.json({ error: err?.message || "Registration failed" }, err?.status || 500);
+    console.error("Sign-up error:", err?.message || err);
+    return c.json({ error: err?.message || "Pendaftaran gagal" }, 400);
   }
 });
 app.post("/api/auth/sign-out", async (c) => {
@@ -447,6 +572,7 @@ app.post("/api/auth/sign-out", async (c) => {
     });
     return response;
   } catch (err) {
+    console.error("Sign-out error:", err?.message || err);
     return c.json({ success: true });
   }
 });
@@ -485,8 +611,8 @@ app.post("/api/auth/sign-in/social", async (c) => {
     });
     return response;
   } catch (err) {
-    console.error("Sign-in social error:", err);
-    return c.json({ error: err?.message || "Social sign-in failed" }, err?.status || 500);
+    console.error("Sign-in social error:", err?.message || err);
+    return c.json({ error: "Social sign-in failed" }, 500);
   }
 });
 app.get("/api/auth/callback/:provider", async (c) => {
@@ -501,24 +627,18 @@ app.get("/api/auth/callback/:provider", async (c) => {
     });
     return response;
   } catch (err) {
-    console.error("OAuth callback error:", err);
-    return c.redirect("/login?error=" + encodeURIComponent(err?.message || "OAuth callback failed"));
+    console.error("OAuth callback error:", err?.message || err);
+    return c.redirect("/login?error=" + encodeURIComponent("OAuth callback failed"));
   }
 });
-app.all("/api/auth/*", (c) => {
-  return auth.handler(c.req.raw);
-});
-app.all("/api/auth", (c) => {
-  return auth.handler(c.req.raw);
-});
-app.all("/auth/*", (c) => {
-  return auth.handler(c.req.raw);
-});
+app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
+app.all("/api/auth", (c) => auth.handler(c.req.raw));
+app.all("/auth/*", (c) => auth.handler(c.req.raw));
 var requireAuth = async (c, next) => {
   const session2 = await auth.api.getSession({
     headers: c.req.raw.headers
   });
-  if (!session2) {
+  if (!session2 || !session2.user?.id) {
     return c.json({ error: "Unauthorized" }, 401);
   }
   c.set("session", session2);
@@ -539,50 +659,28 @@ app.get("/api/me", requireAuth, async (c) => {
   }
   return c.json(userObj);
 });
-app.get("/api/check-username/:username", async (c) => {
-  const username = c.req.param("username").toLowerCase();
-  if (!/^[a-zA-Z][a-zA-Z0-9_]{2,19}$/.test(username)) {
-    return c.json({ available: false, error: "Invalid format" }, 400);
-  }
-  const existingUser = await db.select({ id: user.id }).from(user).where(eq2(user.username, username)).limit(1);
-  return c.json({ available: existingUser.length === 0 });
-});
-app.post("/api/onboarding", requireAuth, async (c) => {
-  const session2 = c.get("session");
-  const body = await c.req.json();
-  const username = body.username?.toLowerCase();
-  if (!/^[a-zA-Z][a-zA-Z0-9_]{2,19}$/.test(username)) {
-    return c.json({ error: "Format username tidak valid" }, 400);
-  }
-  try {
-    await db.update(user).set({
-      username,
-      favoriteCategories: body.favoriteCategories ? JSON.stringify(body.favoriteCategories) : null
-    }).where(eq2(user.id, session2.user.id));
-    return c.json({ success: true });
-  } catch (e) {
-    if (e.code === "23505") {
-      return c.json({ error: "Username sudah digunakan" }, 400);
-    }
-    return c.json({ error: "Gagal menyimpan data" }, 500);
-  }
-});
 app.put("/api/me", requireAuth, async (c) => {
   const session2 = c.get("session");
-  const body = await c.req.json();
+  const body = await c.req.json().catch(() => ({}));
+  const parseResult = updateProfileSchema.safeParse(body);
+  if (!parseResult.success) {
+    return c.json({ error: parseResult.error.issues[0]?.message || "Input tidak valid" }, 400);
+  }
+  const data = parseResult.data;
   const [existingUser] = await db.select().from(user).where(eq2(user.id, session2.user.id)).limit(1);
   if (!existingUser) {
     return c.json({ error: "User not found" }, 404);
   }
-  const newName = body.name !== void 0 ? body.name : existingUser.name;
-  let newUsername = body.username !== void 0 ? body.username : existingUser.username;
-  if (body.username && body.username !== existingUser.username) {
-    const conflict = await db.select().from(user).where(eq2(user.username, body.username));
+  const newName = data.name !== void 0 ? data.name : existingUser.name;
+  const newUsername = data.username !== void 0 ? data.username.toLowerCase() : existingUser.username;
+  if (data.username && data.username.toLowerCase() !== existingUser.username) {
+    const targetUsername = data.username.toLowerCase();
+    const conflict = await db.select().from(user).where(eq2(user.username, targetUsername));
     if (conflict.length > 0 && conflict[0].id !== session2.user.id) {
       return c.json({ error: "Username is already taken" }, 400);
     }
   }
-  const favoriteCategories = body.favoriteCategories !== void 0 ? Array.isArray(body.favoriteCategories) ? JSON.stringify(body.favoriteCategories) : body.favoriteCategories : existingUser.favoriteCategories;
+  const favoriteCategories = data.favoriteCategories !== void 0 ? Array.isArray(data.favoriteCategories) ? JSON.stringify(data.favoriteCategories) : data.favoriteCategories : existingUser.favoriteCategories;
   const [updatedUser] = await db.update(user).set({
     name: newName,
     username: newUsername,
@@ -593,6 +691,39 @@ app.put("/api/me", requireAuth, async (c) => {
     ...updatedUser,
     user: updatedUser
   });
+});
+app.get("/api/check-username/:username", async (c) => {
+  const rawUsername = c.req.param("username");
+  const parseResult = usernameParamSchema.safeParse(rawUsername);
+  if (!parseResult.success) {
+    return c.json({ available: false, error: "Invalid format" }, 400);
+  }
+  const username = parseResult.data.toLowerCase();
+  const existingUser = await db.select({ id: user.id }).from(user).where(eq2(user.username, username)).limit(1);
+  return c.json({ available: existingUser.length === 0 });
+});
+app.post("/api/onboarding", requireAuth, async (c) => {
+  const session2 = c.get("session");
+  const body = await c.req.json().catch(() => ({}));
+  const parseResult = onboardingSchema.safeParse(body);
+  if (!parseResult.success) {
+    return c.json({ error: parseResult.error.issues[0]?.message || "Input tidak valid" }, 400);
+  }
+  const { username, favoriteCategories } = parseResult.data;
+  const cleanUsername = username.toLowerCase();
+  try {
+    await db.update(user).set({
+      username: cleanUsername,
+      favoriteCategories: favoriteCategories ? JSON.stringify(favoriteCategories) : null
+    }).where(eq2(user.id, session2.user.id));
+    return c.json({ success: true });
+  } catch (e) {
+    if (e?.code === "23505") {
+      return c.json({ error: "Username sudah digunakan" }, 400);
+    }
+    console.error("Onboarding update error:", e?.message || e);
+    return c.json({ error: "Gagal menyimpan data" }, 500);
+  }
 });
 app.get("/api/quests", requireAuth, async (c) => {
   const session2 = c.get("session");
@@ -612,18 +743,19 @@ app.get("/api/quests", requireAuth, async (c) => {
 });
 app.post("/api/quests", requireAuth, async (c) => {
   const session2 = c.get("session");
-  const body = await c.req.json();
-  const name = body.name || body.title;
-  if (!name) {
-    return c.json({ error: "Name is required" }, 400);
+  const body = await c.req.json().catch(() => ({}));
+  const parseResult = createQuestSchema.safeParse(body);
+  if (!parseResult.success) {
+    return c.json({ error: parseResult.error.issues[0]?.message || "Input quest tidak valid" }, 400);
   }
-  const minutes = body.estimatedMinutes ?? body.timeGoalMinutes ?? body.duration;
-  const estimatedMinutes = minutes !== void 0 && minutes !== null ? parseInt(String(minutes), 10) : null;
+  const { name, title, category, estimatedMinutes, timeGoalMinutes, duration } = parseResult.data;
+  const questName = name || title;
+  const minutes = estimatedMinutes ?? timeGoalMinutes ?? duration ?? null;
   const [newQuest] = await db.insert(quests).values({
     userId: session2.user.id,
-    name,
-    category: body.category || "coding",
-    estimatedMinutes
+    name: questName,
+    category: category || "coding",
+    estimatedMinutes: minutes
   }).returning();
   return c.json({
     ...newQuest,
@@ -640,17 +772,18 @@ app.delete("/api/quests/:id", requireAuth, async (c) => {
 app.put("/api/quests/:id", requireAuth, async (c) => {
   const session2 = c.get("session");
   const id = c.req.param("id");
-  const body = await c.req.json();
-  const name = body.name || body.title;
-  if (!name) {
-    return c.json({ error: "Name is required" }, 400);
+  const body = await c.req.json().catch(() => ({}));
+  const parseResult = updateQuestSchema.safeParse(body);
+  if (!parseResult.success) {
+    return c.json({ error: parseResult.error.issues[0]?.message || "Input quest tidak valid" }, 400);
   }
-  const minutes = body.estimatedMinutes ?? body.timeGoalMinutes ?? body.duration;
-  const estimatedMinutes = minutes !== void 0 && minutes !== null ? parseInt(String(minutes), 10) : null;
+  const { name, title, category, estimatedMinutes, timeGoalMinutes, duration } = parseResult.data;
+  const questName = name || title;
+  const minutes = estimatedMinutes ?? timeGoalMinutes ?? duration ?? null;
   const [updatedQuest] = await db.update(quests).set({
-    name,
-    category: body.category || "coding",
-    estimatedMinutes
+    name: questName,
+    category: category || "coding",
+    estimatedMinutes: minutes
   }).where(and2(eq2(quests.id, id), eq2(quests.userId, session2.user.id))).returning();
   if (!updatedQuest) {
     return c.json({ error: "Quest not found" }, 404);
@@ -678,6 +811,10 @@ app.get("/api/quests/:id/history", requireAuth, async (c) => {
 app.post("/api/quests/:id/check", requireAuth, async (c) => {
   const session2 = c.get("session");
   const id = c.req.param("id");
+  const [targetQuest] = await db.select().from(quests).where(and2(eq2(quests.id, id), eq2(quests.userId, session2.user.id))).limit(1);
+  if (!targetQuest) {
+    return c.json({ error: "Quest not found" }, 404);
+  }
   await db.insert(questCompletions).values({
     questId: id,
     userId: session2.user.id
@@ -822,9 +959,13 @@ app.get("/api/leaderboard", requireAuth, async (c) => {
   });
 });
 app.get("/api/friends/search", requireAuth, async (c) => {
-  const q = c.req.query("q");
+  const rawQ = c.req.query("q");
   const session2 = c.get("session");
-  if (!q || q.length < 3) return c.json([]);
+  if (!rawQ || typeof rawQ !== "string" || rawQ.trim().length < 3) {
+    return c.json([]);
+  }
+  const q = rawQ.trim().slice(0, 50);
+  const safeQ = escapeSqlLike(q);
   const users = await db.select({
     id: user.id,
     name: user.name,
@@ -832,8 +973,8 @@ app.get("/api/friends/search", requireAuth, async (c) => {
     totalXp: user.totalXp
   }).from(user).where(
     or(
-      ilike(user.username, `%${q}%`),
-      ilike(user.name, `%${q}%`)
+      ilike(user.username, `%${safeQ}%`),
+      ilike(user.name, `%${safeQ}%`)
     )
   ).limit(10);
   const myFriends = await db.select().from(friends).where(
@@ -856,9 +997,18 @@ app.get("/api/friends/search", requireAuth, async (c) => {
 });
 app.post("/api/friends/request", requireAuth, async (c) => {
   const session2 = c.get("session");
-  const { friendId } = await c.req.json();
-  if (!friendId || friendId === session2.user.id) {
-    return c.json({ error: "Invalid friend ID" }, 400);
+  const body = await c.req.json().catch(() => ({}));
+  const parseResult = friendRequestSchema.safeParse(body);
+  if (!parseResult.success) {
+    return c.json({ error: parseResult.error.issues[0]?.message || "Invalid friend ID" }, 400);
+  }
+  const { friendId } = parseResult.data;
+  if (friendId === session2.user.id) {
+    return c.json({ error: "Cannot send friend request to yourself" }, 400);
+  }
+  const [targetUser] = await db.select({ id: user.id }).from(user).where(eq2(user.id, friendId)).limit(1);
+  if (!targetUser) {
+    return c.json({ error: "User tidak ditemukan" }, 404);
   }
   const existing = await db.select().from(friends).where(
     or(
@@ -893,7 +1043,12 @@ app.get("/api/friends/requests", requireAuth, async (c) => {
 });
 app.post("/api/friends/respond", requireAuth, async (c) => {
   const session2 = c.get("session");
-  const { requestId, action } = await c.req.json();
+  const body = await c.req.json().catch(() => ({}));
+  const parseResult = friendRespondSchema.safeParse(body);
+  if (!parseResult.success) {
+    return c.json({ error: parseResult.error.issues[0]?.message || "Invalid payload" }, 400);
+  }
+  const { requestId, action } = parseResult.data;
   const [request] = await db.select().from(friends).where(
     and2(
       eq2(friends.id, requestId),
@@ -907,7 +1062,6 @@ app.post("/api/friends/respond", requireAuth, async (c) => {
     await db.insert(friends).values({
       userId: session2.user.id,
       friendId: request.userId,
-      // User who sent the request
       status: "accepted"
     });
   } else if (action === "reject") {
@@ -916,12 +1070,19 @@ app.post("/api/friends/respond", requireAuth, async (c) => {
   return c.json({ success: true });
 });
 app.post("/api/cron/daily", async (c) => {
+  const authHeader = c.req.header("authorization");
+  const vercelCronHeader = c.req.header("x-vercel-cron");
+  const cronSecret = process.env.CRON_SECRET;
+  const isAuthorized = cronSecret && authHeader === `Bearer ${cronSecret}` || cronSecret && vercelCronHeader === cronSecret || !cronSecret && process.env.NODE_ENV === "development";
+  if (!isAuthorized) {
+    return c.json({ error: "Unauthorized: Missing or invalid CRON_SECRET" }, 401);
+  }
   const today = /* @__PURE__ */ new Date();
   today.setHours(0, 0, 0, 0);
   await db.update(user).set({
     streakAtRisk: true,
     gracePeriodUntil: new Date(Date.now() + 48 * 60 * 60 * 1e3)
-    // 48 hours from now
+    // 48 hours
   }).where(
     and2(
       gt(user.currentStreak, 0),
@@ -944,9 +1105,7 @@ app.post("/api/cron/daily", async (c) => {
   );
   return c.json({
     success: true,
-    message: "Daily reset complete",
-    streaksUpdated: 0,
-    processed: 0
+    message: "Daily reset complete"
   });
 });
 app.get("/api", (c) => c.json({ status: "ok", message: "Streak API is running!" }));
@@ -962,7 +1121,9 @@ if (!process.env.VERCEL && isMainModule && process.env.NODE_ENV !== "test") {
     fetch: app.fetch,
     port
   });
-  seedDatabase().catch((e) => console.error("Initial seed error:", e));
+  if (process.env.NODE_ENV === "development" && process.env.AUTO_SEED === "true") {
+    seedDatabase().catch((e) => console.error("Initial seed error:", e));
+  }
   const shutdown = () => {
     try {
       server.close();
@@ -999,8 +1160,7 @@ async function handler(req, res) {
       res.statusCode = 500;
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify({
-        error: error?.message || "Internal Server Error",
-        stack: error?.stack
+        error: process.env.NODE_ENV === "development" ? error?.message || "Internal Server Error" : "Internal Server Error"
       }));
     }
   }

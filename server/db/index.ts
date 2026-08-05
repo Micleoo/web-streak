@@ -19,6 +19,7 @@ connectionString = connectionString.replace(/\/postgr(\?|$)/, '/postgres$1');
 export const client = postgres(connectionString, {
   prepare: false,
   ssl: 'require',
-  max: process.env.VERCEL ? 1 : 10,
+  max: process.env.VERCEL ? 1 : (process.env.NODE_ENV === 'test' ? 1 : 10),
+  idle_timeout: process.env.NODE_ENV === 'test' ? 1 : 10,
 });
 export const db = drizzle(client, { schema });
