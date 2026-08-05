@@ -170,6 +170,13 @@ var getBaseURL = () => {
   }
   return url;
 };
+var socialProviders = {};
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  socialProviders.google = {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET
+  };
+}
 var baseURL = getBaseURL();
 var auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET || "development-secret-key-streak-app-dev-only",
@@ -185,7 +192,8 @@ var auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true
-  }
+  },
+  socialProviders: Object.keys(socialProviders).length > 0 ? socialProviders : void 0
 });
 
 // server/index.ts

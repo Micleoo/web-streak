@@ -130,6 +130,9 @@ const Dashboard = () => {
         fetch('/api/friends/requests').then(r => r.json())
       ]);
       
+      if (questsRes.quests) {
+        setQuests(questsRes.quests);
+      }
       if (questsRes.completedIds) {
         setCompletedQuestIds(new Set(questsRes.completedIds)); 
       }

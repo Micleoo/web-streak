@@ -43,6 +43,15 @@ const getBaseURL = (): string | undefined => {
   return url;
 };
 
+const socialProviders: Record<string, any> = {};
+
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  socialProviders.google = {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  };
+}
+
 const baseURL = getBaseURL();
 
 export const auth = betterAuth({
@@ -59,4 +68,6 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
+  socialProviders: Object.keys(socialProviders).length > 0 ? socialProviders : undefined,
 });
+
