@@ -169,9 +169,11 @@ var getBaseURL = () => {
 };
 var socialProviders = {};
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  const cleanClientId = process.env.GOOGLE_CLIENT_ID.replace(/^https?:\/\//, "").trim().replace(/^["']|["']$/g, "");
+  const cleanClientSecret = process.env.GOOGLE_CLIENT_SECRET.trim().replace(/^["']|["']$/g, "");
   socialProviders.google = {
-    clientId: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET
+    clientId: cleanClientId,
+    clientSecret: cleanClientSecret
   };
 }
 var baseURL = getBaseURL();
