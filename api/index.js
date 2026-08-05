@@ -468,6 +468,41 @@ app.get("/api/auth/session", async (c) => {
     return c.json(null);
   }
 });
+app.post("/api/auth/sign-in/social", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const response = await auth.api.signInSocial({
+      body: {
+        provider: body.provider,
+        callbackURL: body.callbackURL || "/dashboard",
+        errorCallbackURL: body.errorCallbackURL,
+        newUserCallbackURL: body.newUserCallbackURL
+      },
+      headers: c.req.raw.headers,
+      asResponse: true
+    });
+    return response;
+  } catch (err) {
+    console.error("Sign-in social error:", err);
+    return c.json({ error: err?.message || "Social sign-in failed" }, err?.status || 500);
+  }
+});
+app.get("/api/auth/callback/:provider", async (c) => {
+  try {
+    const response = await auth.api.callbackOAuth({
+      params: {
+        id: c.req.param("provider")
+      },
+      query: c.req.query(),
+      headers: c.req.raw.headers,
+      asResponse: true
+    });
+    return response;
+  } catch (err) {
+    console.error("OAuth callback error:", err);
+    return c.redirect("/login?error=" + encodeURIComponent(err?.message || "OAuth callback failed"));
+  }
+});
 app.all("/api/auth/*", (c) => {
   return auth.handler(c.req.raw);
 });
