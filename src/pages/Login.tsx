@@ -43,10 +43,16 @@ const Login = () => {
     setLoading(true);
     setError(null);
     try {
-      await authClient.signIn.social({
+      const res = await authClient.signIn.social({
         provider: 'google',
         callbackURL: '/dashboard'
       });
+      if (res?.error) {
+        setError(res.error.message || 'Gagal login dengan Google');
+        setLoading(false);
+      } else if (res?.data?.url) {
+        window.location.href = res.data.url;
+      }
     } catch (err: any) {
       console.error('Google login error:', err);
       setError(err?.message || 'Gagal login dengan Google. Pastikan kredensial Google OAuth sudah dikonfigurasi.');

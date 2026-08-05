@@ -144,25 +144,13 @@ app.get('/api/auth/session', async (c) => {
 });
 
 app.all('/api/auth/*', (c) => {
-  const reqUrl = (c.req.header('x-forwarded-proto') === 'https' || process.env.VERCEL)
-    ? c.req.raw.url.replace(/^http:/, 'https:')
-    : c.req.raw.url;
-  const targetReq = reqUrl !== c.req.raw.url ? new Request(reqUrl, c.req.raw) : c.req.raw;
-  return auth.handler(targetReq);
+  return auth.handler(c.req.raw);
 });
 app.all('/api/auth', (c) => {
-  const reqUrl = (c.req.header('x-forwarded-proto') === 'https' || process.env.VERCEL)
-    ? c.req.raw.url.replace(/^http:/, 'https:')
-    : c.req.raw.url;
-  const targetReq = reqUrl !== c.req.raw.url ? new Request(reqUrl, c.req.raw) : c.req.raw;
-  return auth.handler(targetReq);
+  return auth.handler(c.req.raw);
 });
 app.all('/auth/*', (c) => {
-  const reqUrl = (c.req.header('x-forwarded-proto') === 'https' || process.env.VERCEL)
-    ? c.req.raw.url.replace(/^http:/, 'https:')
-    : c.req.raw.url;
-  const targetReq = reqUrl !== c.req.raw.url ? new Request(reqUrl, c.req.raw) : c.req.raw;
-  return auth.handler(targetReq);
+  return auth.handler(c.req.raw);
 });
 
 import type { Context, Next } from 'hono';

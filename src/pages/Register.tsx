@@ -125,10 +125,16 @@ const Register = () => {
     setLoading(true);
     setError(null);
     try {
-      await authClient.signIn.social({
+      const res = await authClient.signIn.social({
         provider: 'google',
         callbackURL: '/onboarding'
       });
+      if (res?.error) {
+        setError(res.error.message || 'Gagal daftar dengan Google');
+        setLoading(false);
+      } else if (res?.data?.url) {
+        window.location.href = res.data.url;
+      }
     } catch (err: any) {
       console.error('Google register error:', err);
       setError(err?.message || 'Gagal daftar dengan Google. Pastikan kredensial Google OAuth sudah dikonfigurasi.');

@@ -32,15 +32,12 @@ const getTrustedOrigins = (request?: Request): string[] => {
 const getBaseURL = (): string | undefined => {
   let url = process.env.BETTER_AUTH_URL || process.env.APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
   if (!url) {
-    return process.env.NODE_ENV === "production" ? undefined : "http://localhost:5173/api/auth";
+    return process.env.NODE_ENV === "production" ? "https://web-streak.vercel.app" : "http://localhost:5173";
   }
   if (!url.startsWith("http://") && !url.startsWith("https://")) {
     url = `https://${url}`;
   }
-  if (!url.endsWith("/api/auth")) {
-    url = `${url.replace(/\/+$/, "")}/api/auth`;
-  }
-  return url;
+  return url.replace(/\/api\/auth\/?$/, "").replace(/\/+$/, "");
 };
 
 const socialProviders: Record<string, any> = {};
