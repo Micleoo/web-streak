@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Flame, Check, Plus, Trophy, User, Trash2, Code, Dumbbell, BookOpen, Gamepad2, Users, Home, Target, Search, X, UserPlus, AlertTriangle, History } from 'lucide-react';
+import { Flame, Check, Plus, Trophy, User, Trash2, Code, Dumbbell, BookOpen, Gamepad2, Users, Home, Target, Search, X, UserPlus, AlertTriangle, History, Clock, ArrowDown, Sparkles } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../contexts/AuthContext';
+import { getXpLevel } from '../lib/xpUtils';
 import './Dashboard.css';
 
 interface Quest {
@@ -77,7 +78,16 @@ const Dashboard = () => {
   const [historyQuest, setHistoryQuest] = useState<Quest | null>(null);
   const [questHistoryData, setQuestHistoryData] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  
+  const [graceCountdown, setGraceCountdown] = useState<{
+    text: string;
+    isUrgent: boolean;
+    expired: boolean;
+  } | null>(null);
+
+  const xpInfo = useMemo(() => {
+    return getXpLevel(profile?.totalXp || 0);
+  }, [profile?.totalXp]);
+
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
     if (hour >= 5 && hour < 12) return 'Selamat Pagi';
@@ -91,6 +101,38 @@ const Dashboard = () => {
   }, []);
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!profile?.streakAtRisk || !profile?.gracePeriodUntil) {
+      setGraceCountdown(null);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const now = new Date().getTime();
+      const target = new Date(profile.gracePeriodUntil!).getTime();
+      const diff = target - now;
+
+      if (diff <= 0) {
+        setGraceCountdown({ text: '00:00:00', isUrgent: true, expired: true });
+        return;
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const text = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+      const isUrgent = hours < 12;
+
+      setGraceCountdown({ text, isUrgent, expired: false });
+    };
+
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
+    return () => clearInterval(timer);
+  }, [profile?.streakAtRisk, profile?.gracePeriodUntil]);
 
   useEffect(() => {
     if (user) {
@@ -318,14 +360,21 @@ const Dashboard = () => {
   const handleCheckQuest = async (questId: string) => {
     if (!user || !profile) return;
 
-    // Optimistic UI update - we just let the check animation play but we don't disable it
     try {
       const res = await fetch(`/api/quests/${questId}/check`, { method: 'POST' });
       const data = await res.json();
       if (data.error) {
+         showToast(data.error, 'error');
          fetchData();
          return;
       }
+      
+      if (data.gracePeriodRestored) {
+        showToast('🔥 BARA BERHASIL DIPULIHKAN! Bonus +30 XP didapatkan!', 'success');
+      } else if (data.message) {
+        showToast(data.message, 'success');
+      }
+
       await refreshProfile();
       fetchData(); // reload leaderboard and completions
     } catch (e) {
@@ -388,23 +437,50 @@ const Dashboard = () => {
           </header>
 
           {profile.streakAtRisk && (
-            <div className="grace-period-banner">
-              <AlertTriangle size={20} className="warning-icon" />
-              <div className="banner-text">
-                <strong>Bara kamu padam!</strong>
-                <p>Selesaikan minimal 1 quest sebelum {new Date(profile.gracePeriodUntil!).toLocaleDateString()} {new Date(profile.gracePeriodUntil!).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} untuk memulihkan Bara.</p>
+            <div className="grace-period-banner" id="grace-period-alert">
+              <div className="grace-period-content">
+                <AlertTriangle size={24} className="warning-icon" />
+                <div className="banner-text">
+                  <strong>
+                    Bara Kamu Padam!
+                    {graceCountdown && (
+                      <span className={`countdown-badge ${graceCountdown.isUrgent ? 'urgent' : ''}`}>
+                        <Clock size={12} style={{marginRight: '2px'}} />
+                        {graceCountdown.text}
+                      </span>
+                    )}
+                  </strong>
+                  <p>
+                    {graceCountdown?.expired
+                      ? 'Grace period telah berakhir. Selesaikan quest untuk memulai streak baru!'
+                      : 'Selesaikan minimal 1 quest sebelum batas waktu untuk memulihkan Bara (+20 XP bonus restore & streak terselamatkan).'}
+                  </p>
+                </div>
               </div>
+              <button 
+                type="button"
+                className="grace-period-action-btn"
+                onClick={() => {
+                  const questInput = document.querySelector('.main-input') as HTMLInputElement;
+                  if (questInput) {
+                    questInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    questInput.focus();
+                  }
+                }}
+              >
+                <ArrowDown size={14} /> Selesaikan Quest Sekarang
+              </button>
             </div>
           )}
 
           {/* Stats Grid */}
           <div className="stats-grid">
-            <div className={`stat-card glass-panel ${profile.streakAtRisk ? 'at-risk' : ''} ${profile.currentStreak >= 3 ? 'active-streak' : ''}`}>
+            <div className={`stat-card glass-panel ${profile.streakAtRisk ? 'at-risk' : ''} ${profile.currentStreak >= 3 && !profile.streakAtRisk ? 'active-streak' : ''}`}>
               <div className={`stat-icon ${profile.streakAtRisk ? 'gray' : (profile.currentStreak >= 3 ? 'orange pulse' : 'gray')}`}>
                 <Flame size={20} />
               </div>
               <div className="stat-value">{profile.currentStreak}</div>
-              <div className="stat-label">Day Streak</div>
+              <div className="stat-label">{profile.streakAtRisk ? 'Bara Padam' : 'Day Streak'}</div>
             </div>
             <div className="stat-card glass-panel">
               <div className="stat-icon blue"><Check size={20} /></div>
@@ -412,9 +488,41 @@ const Dashboard = () => {
               <div className="stat-label">Selesai Hari Ini</div>
             </div>
             <div className="stat-card glass-panel">
-              <div className="stat-icon yellow"><Trophy size={20} /></div>
-              <div className="stat-value">{profile.totalXp}</div>
+              <div className="stat-icon purple"><Sparkles size={20} /></div>
+              <div className="stat-value">{profile.totalXp.toLocaleString()}</div>
               <div className="stat-label">Total XP</div>
+            </div>
+          </div>
+
+          {/* XP Level Tier & Progress Bar Card */}
+          <div className="xp-level-card glass-panel">
+            <div className="xp-level-header">
+              <div className="xp-level-info">
+                <span className={`xp-tier-pill tier-${xpInfo.level}`}>
+                  {xpInfo.icon} Lv.{xpInfo.level} {xpInfo.name}
+                </span>
+                <span className="xp-points-count">
+                  <strong>{profile.totalXp.toLocaleString()}</strong> XP
+                </span>
+              </div>
+              <div className="xp-next-target">
+                {xpInfo.nextTier ? (
+                  <span>{xpInfo.xpNeeded} XP lagi ke {xpInfo.nextTier.name} {xpInfo.nextTier.icon}</span>
+                ) : (
+                  <span>👑 Max Tier Level</span>
+                )}
+              </div>
+            </div>
+            <div className="xp-progress-bar-container">
+              <div 
+                className="xp-progress-bar-fill"
+                style={{ width: `${xpInfo.progress}%` }}
+              />
+            </div>
+            <div className="xp-progress-footer">
+              <span>{xpInfo.minXp} XP (Lv.{xpInfo.level})</span>
+              <span>{xpInfo.progress}% menuju level berikutnya</span>
+              <span>{xpInfo.maxXp ? `${xpInfo.maxXp} XP (Lv.${xpInfo.level + 1})` : 'Max'}</span>
             </div>
           </div>
 
@@ -648,22 +756,33 @@ const Dashboard = () => {
             </div>
             
             <div className="leaderboard-list">
-              {(activeTab === 'global' ? leaderboard : friendsLeaderboard).map((leader, index) => (
-                <div key={leader.id} className={`leaderboard-item ${leader.id === user.id ? 'is-me' : ''}`}>
-                  <div className="rank">#{index + 1}</div>
-                  <div className="friend-avatar">
-                    <User size={16} />
+              {(activeTab === 'global' ? leaderboard : friendsLeaderboard).map((leader, index) => {
+                const leaderXp = getXpLevel(leader.totalXp);
+                return (
+                  <div key={leader.id} className={`leaderboard-item ${leader.id === user.id ? 'is-me' : ''}`}>
+                    <div className="rank">#{index + 1}</div>
+                    <div className="friend-avatar">
+                      <User size={16} />
+                    </div>
+                    <div className="friend-info">
+                      <h4>
+                        {leader.name || 'User'}
+                        <span className={`leaderboard-level-pill tier-${leaderXp.level}`} title={`${leaderXp.name} (Level ${leaderXp.level})`}>
+                          {leaderXp.icon} Lv.{leaderXp.level}
+                        </span>
+                      </h4>
+                      <span>@{leader.username || 'user'}</span>
+                    </div>
+                    <div className="leader-streak-info">
+                      <div className="friend-streak">
+                        <Flame size={14} className="text-gradient" />
+                        <span>{leader.currentStreak}d</span>
+                      </div>
+                      <span className="leader-xp-subtext">{leader.totalXp.toLocaleString()} XP</span>
+                    </div>
                   </div>
-                  <div className="friend-info">
-                    <h4>{leader.name || 'User'}</h4>
-                    <span>@{leader.username || 'user'} · {leader.totalXp.toLocaleString()} XP</span>
-                  </div>
-                  <div className="friend-streak">
-                    <Flame size={14} className="text-gradient" />
-                    <span>{leader.currentStreak}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               {activeTab === 'friends' && friendsLeaderboard.length === 1 && (
                 <div className="empty-friends" style={{marginTop: '20px'}}>
                   <Users size={32} color="var(--text-muted)" style={{marginBottom: '1rem'}} />

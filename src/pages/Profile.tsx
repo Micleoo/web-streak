@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import Navbar from '../components/Navbar';
-import { User, Flame, Trophy, Star, Target, Loader2, Award, Zap } from 'lucide-react';
+import { User, Flame, Trophy, Star, Target, Loader2, Award, Zap, Sparkles } from 'lucide-react';
+import { getXpLevel } from '../lib/xpUtils';
 import './Profile.css';
 
 interface Achievement {
@@ -89,6 +90,10 @@ export default function Profile() {
     }
   };
 
+  const xpInfo = useMemo(() => {
+    return getXpLevel(profile?.totalXp || 0);
+  }, [profile?.totalXp]);
+
   if (loading || loadingStats) {
     return (
       <div className="profile-page">
@@ -142,7 +147,12 @@ export default function Profile() {
               </div>
             ) : (
               <>
-                <h1>{profile?.name}</h1>
+                <div style={{display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap'}}>
+                  <h1>{profile?.name}</h1>
+                  <span className={`profile-tier-pill tier-${xpInfo.level}`}>
+                    {xpInfo.icon} Lv.{xpInfo.level} {xpInfo.name}
+                  </span>
+                </div>
                 <p className="username">@{profile?.username || 'user'}</p>
                 <p className="email">{profile?.email}</p>
               </>
@@ -162,6 +172,35 @@ export default function Profile() {
             ) : (
               <button className="btn btn-secondary" onClick={() => setIsEditing(true)}>Edit Profile</button>
             )}
+          </div>
+        </div>
+
+        {/* XP Level Tier Card */}
+        <div className="profile-xp-card glass-panel">
+          <div className="profile-xp-header">
+            <div className="xp-tier-title">
+              <span className="tier-icon">{xpInfo.icon}</span>
+              <div>
+                <h3>Level {xpInfo.level}: {xpInfo.name}</h3>
+                <p className="tier-subtitle">
+                  {xpInfo.nextTier ? `${xpInfo.xpNeeded} XP lagi untuk mencapai ${xpInfo.nextTier.name} ${xpInfo.nextTier.icon}` : 'Tingkat Tertinggi Tercapai! 👑'}
+                </p>
+              </div>
+            </div>
+            <div className="profile-xp-total">
+              <strong>{(profile?.totalXp || 0).toLocaleString()}</strong> XP
+            </div>
+          </div>
+          <div className="profile-xp-bar-container">
+            <div 
+              className="profile-xp-bar-fill"
+              style={{ width: `${xpInfo.progress}%` }}
+            />
+          </div>
+          <div className="profile-xp-footer">
+            <span>{xpInfo.minXp} XP (Lv.{xpInfo.level})</span>
+            <span>{xpInfo.progress}% Menuju Level {xpInfo.level + 1}</span>
+            <span>{xpInfo.maxXp ? `${xpInfo.maxXp} XP (Lv.${xpInfo.level + 1})` : 'Max'}</span>
           </div>
         </div>
 
@@ -185,8 +224,8 @@ export default function Profile() {
           <div className="stat-card glass-panel">
             <Star className="stat-icon purple" />
             <div className="stat-content">
-              <h3>{profile?.totalXp}</h3>
-              <p>Total XP</p>
+              <h3>{(profile?.totalXp || 0).toLocaleString()}</h3>
+              <p>Total XP (Lv.{xpInfo.level})</p>
             </div>
           </div>
         </div>
