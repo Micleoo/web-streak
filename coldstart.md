@@ -345,12 +345,13 @@ Semua perbaikan ini sudah masuk ke commit `aa854a6`:
 | Aspek | Status | Catatan |
 |---|---|---|
 | **Production** | 🟢 Live | https://web-streak.vercel.app |
-| **GitHub Repo** | 🟢 Up-to-date | Branch `main` |
+| **GitHub Repo** | 🟢 Up-to-date | Branch `main`, commit terbaru: `251ec1f` |
 | **Database** | 🟢 Running | PostgreSQL di Supabase |
 | **Google OAuth** | 🟢 Working | Sudah dikonfigurasi via Google Cloud Console |
 | **Cron Job** | 🟢 Active | Berjalan setiap 00:00 UTC via Vercel Cron |
 | **Security** | 🟢 Hardened | 27/27 security tests passed |
 | **XP Level & Grace Period** | 🟢 Complete | 5 Tier leveling, progress bar, real-time countdown |
+| **Branding & Favicon** | 🟢 Updated | Tab title & Bara Flame favicon matching Dashboard UI |
 | **Unit Tests** | 🟢 Active | Unit tests untuk security & XP math (7/7 passed) |
 | **E2E Tests** | 🟡 Manual | Playwright tests tersedia tapi perlu koneksi database aktif |
 | **Mobile Responsive** | 🟢 Responsive | Dashboard, Profile, Leaderboard, & Grace alert fully responsive |
