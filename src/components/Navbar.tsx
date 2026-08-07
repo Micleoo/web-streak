@@ -1,13 +1,37 @@
-import { LogIn, LogOut, Flame, Menu, X } from 'lucide-react';
+import { LogIn, LogOut, Flame, Menu, X, Users } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './Navbar.css';
 
 const Navbar: React.FC = () => {
   const { session, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+
+  useEffect(() => {
+    if (!session) {
+      setPendingRequestsCount(0);
+      return;
+    }
+
+    const fetchRequests = async () => {
+      try {
+        const res = await fetch('/api/friends/requests', { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          setPendingRequestsCount(data.requests?.length || 0);
+        }
+      } catch (err) {
+        // Silently fail if offline or not logged in
+      }
+    };
+
+    fetchRequests();
+    const interval = setInterval(fetchRequests, 60000); // Polling every 1 min
+    return () => clearInterval(interval);
+  }, [session]);
 
   const handleLogout = async () => {
     await signOut();
@@ -42,13 +66,25 @@ const Navbar: React.FC = () => {
         
         {/* Mobile Menu Toggle */}
         <button className="mobile-menu-btn" onClick={toggleMobileMenu}>
-          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          {isMobileMenuOpen ? <X size={24} /> : (
+            <div style={{ position: 'relative' }}>
+              <Menu size={24} />
+              {pendingRequestsCount > 0 && <span className="nav-notification-dot" />}
+            </div>
+          )}
         </button>
 
         <div className={`navbar-links ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
           {session ? (
             <>
-              <Link to="/dashboard" className="nav-link" onClick={closeMobileMenu}>Dashboard</Link>
+              <Link to="/dashboard" className="nav-link" onClick={closeMobileMenu}>
+                Dashboard
+                {pendingRequestsCount > 0 && (
+                  <span className="nav-request-pill" title={`${pendingRequestsCount} permintaan teman baru`}>
+                    <Users size={12} /> {pendingRequestsCount}
+                  </span>
+                )}
+              </Link>
               <Link to="/profile" className="nav-profile-name" onClick={closeMobileMenu}>
                 {profile?.name || 'User'}
               </Link>

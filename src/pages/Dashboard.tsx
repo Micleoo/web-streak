@@ -1,6 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Flame, Check, Plus, Trophy, User, Trash2, Code, Dumbbell, BookOpen, Gamepad2, Users, Home, Target, Search, X, UserPlus, AlertTriangle, History, Clock, ArrowDown, Sparkles } from 'lucide-react';
+import { 
+  Flame, Check, Plus, Trophy, User, Trash2, Code, Dumbbell, BookOpen, 
+  Gamepad2, Users, Home, Target, Search, X, UserPlus, AlertTriangle, 
+  History, Clock, ArrowDown, Sparkles, SlidersHorizontal, ChevronDown, ChevronUp, Share2
+} from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../contexts/AuthContext';
 import { getXpLevel } from '../lib/xpUtils';
@@ -42,10 +46,13 @@ const Dashboard = () => {
   
   const [quests, setQuests] = useState<Quest[]>([]);
   const [completedQuestIds, setCompletedQuestIds] = useState<Set<string>>(new Set());
+  
+  // Quick Add State
   const [newQuest, setNewQuest] = useState('');
+  const [showAddDetails, setShowAddDetails] = useState(false);
   const [newQuestCategory, setNewQuestCategory] = useState('coding');
   const [newCustomCategory, setNewCustomCategory] = useState('');
-  const [newQuestMinutes, setNewQuestMinutes] = useState('');
+  const [newQuestMinutes, setNewQuestMinutes] = useState('15');
   const [newQuestTimeUnit, setNewQuestTimeUnit] = useState('m');
   
   const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
@@ -59,7 +66,7 @@ const Dashboard = () => {
 
   const showToast = (text: string, type: 'error' | 'success') => {
     setToastMessage({text, type});
-    setTimeout(() => setToastMessage(null), 3000);
+    setTimeout(() => setToastMessage(null), 3500);
   };
   
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
@@ -73,11 +80,13 @@ const Dashboard = () => {
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [friendRequests, setFriendRequests] = useState<any[]>([]);
+  
   // History State
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyQuest, setHistoryQuest] = useState<Quest | null>(null);
   const [questHistoryData, setQuestHistoryData] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  
   const [graceCountdown, setGraceCountdown] = useState<{
     text: string;
     isUrgent: boolean;
@@ -101,6 +110,13 @@ const Dashboard = () => {
   }, []);
 
   const navigate = useNavigate();
+
+  // User rank in Global & Friends leaderboard
+  const userGlobalRank = useMemo(() => {
+    if (!user?.id || leaderboard.length === 0) return null;
+    const idx = leaderboard.findIndex(l => l.id === user.id);
+    return idx !== -1 ? idx + 1 : null;
+  }, [leaderboard, user?.id]);
 
   useEffect(() => {
     if (!profile?.streakAtRisk || !profile?.gracePeriodUntil) {
@@ -151,12 +167,14 @@ const Dashboard = () => {
 
   const fetchLeaderboardsOnly = async () => {
     try {
-      const [leaderboardRes, friendsRes] = await Promise.all([
+      const [leaderboardRes, friendsRes, requestsRes] = await Promise.all([
         fetch('/api/leaderboard').then(r => r.json()),
-        fetch('/api/leaderboard?tab=friends').then(r => r.json())
+        fetch('/api/leaderboard?tab=friends').then(r => r.json()),
+        fetch('/api/friends/requests').then(r => r.json())
       ]);
       setLeaderboard(parseLeaderboardData(leaderboardRes));
       setFriendsLeaderboard(parseLeaderboardData(friendsRes));
+      if (Array.isArray(requestsRes)) setFriendRequests(requestsRes);
     } catch(e) {
       console.error(e);
     }
@@ -227,17 +245,17 @@ const Dashboard = () => {
         body: JSON.stringify({ requestId, action })
       });
       fetchData();
+      showToast(action === 'accept' ? 'Teman berhasil ditambahkan!' : 'Permintaan ditolak.', 'success');
     } catch (e) {
       console.error(e);
     }
   };
 
-
   const handleAddQuest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newQuest.trim() || !user) return;
     
-    let totalMinutes = newQuestMinutes ? parseInt(newQuestMinutes, 10) : undefined;
+    let totalMinutes = newQuestMinutes ? parseInt(newQuestMinutes, 10) : 15;
     if (totalMinutes && newQuestTimeUnit === 'h') totalMinutes *= 60;
     
     const categoryToSave = newQuestCategory === 'custom' && newCustomCategory.trim() ? newCustomCategory.trim() : newQuestCategory;
@@ -247,7 +265,7 @@ const Dashboard = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          name: newQuest, 
+          name: newQuest.trim(), 
           category: categoryToSave,
           estimatedMinutes: totalMinutes 
         })
@@ -256,8 +274,9 @@ const Dashboard = () => {
       if (data && !data.error) {
         setQuests([...quests, data]);
         setNewQuest('');
-        setNewQuestMinutes('');
+        setNewQuestMinutes('15');
         setNewCustomCategory('');
+        showToast('Quest baru berhasil ditambahkan! 🎯', 'success');
       }
     } catch(e) { console.error(e) }
   };
@@ -265,12 +284,11 @@ const Dashboard = () => {
   const handleDeleteQuest = async (questId: string) => {
     if (!confirm('Apakah kamu yakin ingin menghapus quest ini?')) return;
     
-    // Optimistic UI update
     setQuests(quests.filter(q => q.id !== questId));
     
     try {
       const res = await fetch(`/api/quests/${questId}`, { method: 'DELETE' });
-      if (!res.ok) fetchData(); // revert if error
+      if (!res.ok) fetchData();
     } catch (e) {
       console.error(e);
       fetchData();
@@ -329,7 +347,6 @@ const Dashboard = () => {
 
     const categoryToSave = editQuestCategory === 'custom' && editCustomCategory.trim() ? editCustomCategory.trim() : editQuestCategory;
     
-    // Optimistic UI update
     const originalQuests = [...quests];
     setQuests(quests.map(q => q.id === questId ? {
       ...q,
@@ -349,13 +366,12 @@ const Dashboard = () => {
           estimatedMinutes: totalMinutes
         })
       });
-      if (!res.ok) setQuests(originalQuests); // revert on error
+      if (!res.ok) setQuests(originalQuests);
     } catch (e) {
       console.error(e);
       setQuests(originalQuests);
     }
   };
-
 
   const handleCheckQuest = async (questId: string) => {
     if (!user || !profile) return;
@@ -376,7 +392,7 @@ const Dashboard = () => {
       }
 
       await refreshProfile();
-      fetchData(); // reload leaderboard and completions
+      fetchData();
     } catch (e) {
       console.error(e);
       fetchData();
@@ -398,7 +414,7 @@ const Dashboard = () => {
     return (
       <div className="dashboard-page">
         <Navbar />
-        <div style={{padding: '100px', textAlign: 'center'}}>Loading...</div>
+        <div style={{padding: '100px', textAlign: 'center'}}>Loading Dashboard...</div>
       </div>
     );
   }
@@ -414,28 +430,31 @@ const Dashboard = () => {
     );
   }
 
+  const isBaraActive = profile.currentStreak >= 3 && !profile.streakAtRisk;
+  const isGraceActive = profile.streakAtRisk;
+  const hasCompletedQuestToday = completedQuestIds.size > 0;
+
   return (
     <div className="dashboard-page">
       <Navbar />
       
       <main className="dashboard-container container">
-        {/* Left Column: Quests */}
+        {/* Toast Notification */}
         {toastMessage && (
-          <div style={{
-            position: 'fixed', bottom: '24px', right: '24px',
-            background: toastMessage.type === 'error' ? 'var(--danger-color)' : 'var(--success-color)',
-            color: 'white', padding: '12px 24px', borderRadius: '8px', zIndex: 9999,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.15)', animation: 'pop 0.3s ease-out'
-          }}>
+          <div className={`dashboard-toast ${toastMessage.type}`}>
             {toastMessage.text}
           </div>
         )}
+
+        {/* Left Column: Main Dashboard Content */}
         <div className="dashboard-main">
+          
           <header className="dashboard-header">
             <h1 className="dashboard-title">{greeting}, {profile.name || 'User'}!</h1>
             <p className="dashboard-subtitle">{motivation} Kamu punya {quests.length - completedQuestIds.size} quest tersisa hari ini.</p>
           </header>
 
+          {/* Grace Period Alert Banner */}
           {profile.streakAtRisk && (
             <div className="grace-period-banner" id="grace-period-alert">
               <div className="grace-period-content">
@@ -458,7 +477,7 @@ const Dashboard = () => {
                 </div>
               </div>
               <button 
-                type="button"
+                type="button" 
                 className="grace-period-action-btn"
                 onClick={() => {
                   const questInput = document.querySelector('.main-input') as HTMLInputElement;
@@ -473,15 +492,70 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* Stats Grid */}
-          <div className="stats-grid">
-            <div className={`stat-card glass-panel ${profile.streakAtRisk ? 'at-risk' : ''} ${profile.currentStreak >= 3 && !profile.streakAtRisk ? 'active-streak' : ''}`}>
-              <div className={`stat-icon ${profile.streakAtRisk ? 'gray' : (profile.currentStreak >= 3 ? 'orange pulse' : 'gray')}`}>
-                <Flame size={20} />
+          {/* PRIMARY METRIC: STREAK HERO CARD */}
+          <div className={`streak-hero-card glass-panel ${isGraceActive ? 'hero-at-risk' : isBaraActive ? 'hero-active' : 'hero-building'}`}>
+            <div className="hero-streak-left">
+              <div className="hero-flame-container">
+                <Flame 
+                  size={54} 
+                  className={`hero-flame-icon ${isGraceActive ? 'flame-risk' : isBaraActive ? 'flame-active' : 'flame-building'}`} 
+                />
               </div>
-              <div className="stat-value">{profile.currentStreak}</div>
-              <div className="stat-label">{profile.streakAtRisk ? 'Bara Padam' : 'Day Streak'}</div>
+              <div className="hero-streak-digits">
+                <span className="hero-streak-number">{profile.currentStreak}</span>
+                <span className="hero-streak-label">
+                  {isGraceActive ? 'BARA PADAM' : isBaraActive ? 'HARI BARA MENYALA' : 'DAY STREAK'}
+                </span>
+              </div>
             </div>
+
+            <div className="hero-streak-right">
+              <div className="hero-status-pill">
+                {isGraceActive ? (
+                  <span className="status-badge risk">
+                    <AlertTriangle size={13} /> Butuh Dipulihkan (48 Jam)
+                  </span>
+                ) : isBaraActive ? (
+                  <span className="status-badge active">
+                    🔥 Bara Menyala Kuat
+                  </span>
+                ) : (
+                  <span className="status-badge building">
+                    🌱 {profile.currentStreak}/3 Hari Menuju Bara
+                  </span>
+                )}
+              </div>
+
+              <div className="hero-streak-message">
+                {hasCompletedQuestToday ? (
+                  <p className="status-text-green">
+                    <Check size={16} /> <strong>Bara Aman Hari Ini!</strong> Kamu sudah menyelesaikan quest harian.
+                  </p>
+                ) : (
+                  <p className="status-text-muted">
+                    ⚡ Selesaikan minimal 1 quest sebelum 23:59 untuk menjaga streak-mu.
+                  </p>
+                )}
+              </div>
+
+              <div className="hero-meta-chips">
+                <span className="meta-chip">
+                  <Trophy size={13} color="#f59e0b" /> Rekor: {profile.maxStreak || profile.currentStreak} Hari
+                </span>
+                <span className="meta-chip">
+                  <Sparkles size={13} color="#a855f7" /> Tier: {xpInfo.name}
+                </span>
+                {userGlobalRank && (
+                  <span className="meta-chip">
+                    🏆 Rank #{userGlobalRank} Global
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Secondary Stats Grid */}
+          <div className="stats-grid">
             <div className="stat-card glass-panel">
               <div className="stat-icon blue"><Check size={20} /></div>
               <div className="stat-value">{completedQuestIds.size} / {quests.length}</div>
@@ -491,6 +565,11 @@ const Dashboard = () => {
               <div className="stat-icon purple"><Sparkles size={20} /></div>
               <div className="stat-value">{profile.totalXp.toLocaleString()}</div>
               <div className="stat-label">Total XP</div>
+            </div>
+            <div className="stat-card glass-panel">
+              <div className="stat-icon orange"><Trophy size={20} /></div>
+              <div className="stat-value">Lv.{xpInfo.level}</div>
+              <div className="stat-label">{xpInfo.name}</div>
             </div>
           </div>
 
@@ -526,217 +605,259 @@ const Dashboard = () => {
             </div>
           </div>
 
+          {/* Quests Section */}
           <section className="quest-section">
             <div className="section-header-row">
               <h2>Daily Quests</h2>
+              <button 
+                type="button" 
+                className="toggle-details-btn"
+                onClick={() => setShowAddDetails(!showAddDetails)}
+                title="Pengaturan detail quest (waktu & kategori)"
+              >
+                <SlidersHorizontal size={14} />
+                <span>{showAddDetails ? 'Sembunyikan Opsi' : '+ Opsi Detail'}</span>
+                {showAddDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
             </div>
             
-            <form onSubmit={handleAddQuest} className="add-quest-form" style={{flexWrap: 'wrap'}}>
-              <input
-                type="text"
-                placeholder="Tambahkan quest baru..."
-                value={newQuest}
-                onChange={(e) => setNewQuest(e.target.value)}
-                className="quest-input main-input"
-                style={{flex: '1', minWidth: '200px'}}
-              />
-              <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
+            {/* Quick-Add / Full Add Quest Form */}
+            <form onSubmit={handleAddQuest} className="add-quest-form">
+              <div className="quick-add-row">
                 <input
-                  type="number"
-                  placeholder="Waktu"
-                  value={newQuestMinutes}
-                  onChange={(e) => setNewQuestMinutes(e.target.value)}
-                  className="quest-input minutes-input"
-                  min="1"
-                  style={{width: '80px'}}
+                  type="text"
+                  placeholder="Ketik nama habit / quest baru..."
+                  value={newQuest}
+                  onChange={(e) => setNewQuest(e.target.value)}
+                  className="quest-input main-input"
                 />
-                <select 
-                  value={newQuestTimeUnit} 
-                  onChange={(e) => setNewQuestTimeUnit(e.target.value)}
-                  className="quest-category-select"
-                  style={{width: 'auto'}}
-                >
-                  <option value="m">Menit</option>
-                  <option value="h">Jam</option>
-                </select>
+                <button type="submit" className="btn btn-primary add-quest-btn">
+                  <Plus size={18} /> Tambah
+                </button>
               </div>
-              
-              <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
-                <select 
-                  value={newQuestCategory}
-                  onChange={(e) => setNewQuestCategory(e.target.value)}
-                  className="quest-category-select"
-                >
-                  {CATEGORIES.map(c => (
-                    <option key={c.id} value={c.id}>{c.label}</option>
-                  ))}
-                  <option value="custom">Lainnya...</option>
-                </select>
-                {newQuestCategory === 'custom' && (
-                  <input
-                    type="text"
-                    placeholder="Kategori"
-                    value={newCustomCategory}
-                    onChange={(e) => setNewCustomCategory(e.target.value)}
-                    className="quest-input"
-                    style={{width: '100px'}}
-                  />
-                )}
-              </div>
-              <button type="submit" className="btn btn-primary add-quest-btn">
-                <Plus size={18} /> Tambah
-              </button>
-            </form>
 
-            <div className="quest-list">
-              {quests.map(quest => {
-                const isCompleted = completedQuestIds.has(quest.id);
-                const isEditing = editingQuestId === quest.id;
-                
-                if (isEditing) {
-                  return (
-                    <div key={quest.id} className="quest-card glass-panel editing">
-                      <div className="edit-quest-form" style={{display: 'flex', gap: '8px', width: '100%', flexWrap: 'wrap'}}>
+              {/* Collapsible Details Row */}
+              {showAddDetails && (
+                <div className="quest-options-row animate-fade">
+                  <div className="option-group">
+                    <label>Waktu Estimasi:</label>
+                    <div className="time-input-wrap">
+                      <input
+                        type="number"
+                        placeholder="15"
+                        value={newQuestMinutes}
+                        onChange={(e) => setNewQuestMinutes(e.target.value)}
+                        className="quest-input minutes-input"
+                        min="1"
+                      />
+                      <select 
+                        value={newQuestTimeUnit} 
+                        onChange={(e) => setNewQuestTimeUnit(e.target.value)}
+                        className="quest-category-select"
+                      >
+                        <option value="m">Menit</option>
+                        <option value="h">Jam</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="option-group">
+                    <label>Kategori:</label>
+                    <div className="cat-input-wrap">
+                      <select 
+                        value={newQuestCategory} 
+                        onChange={(e) => setNewQuestCategory(e.target.value)}
+                        className="quest-category-select"
+                      >
+                        {CATEGORIES.map(c => (
+                          <option key={c.id} value={c.id}>{c.label}</option>
+                        ))}
+                        <option value="custom">Lainnya...</option>
+                      </select>
+                      {newQuestCategory === 'custom' && (
                         <input
                           type="text"
-                          value={editQuestName}
-                          onChange={(e) => setEditQuestName(e.target.value)}
+                          placeholder="Nama Kategori"
+                          value={newCustomCategory}
+                          onChange={(e) => setNewCustomCategory(e.target.value)}
                           className="quest-input"
-                          style={{flex: '1', minWidth: '150px'}}
                         />
-                        <div style={{display: 'flex', gap: '4px'}}>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </form>
+
+            {/* Quest Cards List */}
+            <div className="quest-list">
+              {quests.length === 0 ? (
+                <div className="empty-quests-box glass-panel">
+                  <Target size={36} color="var(--text-muted)" />
+                  <p>Belum ada quest hari ini. Buat quest pertamamu di atas untuk mulai membangun Bara! 🔥</p>
+                </div>
+              ) : (
+                quests.map(quest => {
+                  const isCompleted = completedQuestIds.has(quest.id);
+                  const isEditing = editingQuestId === quest.id;
+                  
+                  if (isEditing) {
+                    return (
+                      <div key={quest.id} className="quest-card glass-panel editing">
+                        <div className="edit-quest-form">
                           <input
-                            type="number"
-                            placeholder="Waktu"
-                            value={editQuestMinutes}
-                            onChange={(e) => setEditQuestMinutes(e.target.value)}
-                            className="quest-input minutes-input"
-                            min="1"
-                            style={{width: '60px'}}
+                            type="text"
+                            value={editQuestName}
+                            onChange={(e) => setEditQuestName(e.target.value)}
+                            className="quest-input edit-name-input"
+                            autoFocus
                           />
-                          <select 
-                            value={editQuestTimeUnit}
-                            onChange={(e) => setEditQuestTimeUnit(e.target.value)}
-                            className="quest-category-select"
-                          >
-                            <option value="m">m</option>
-                            <option value="h">j</option>
-                          </select>
-                        </div>
-                        <div style={{display: 'flex', gap: '4px'}}>
-                          <select 
-                            value={editQuestCategory}
-                            onChange={(e) => setEditQuestCategory(e.target.value)}
-                            className="quest-category-select"
-                          >
-                            {CATEGORIES.map(c => (
-                              <option key={c.id} value={c.id}>{c.label}</option>
-                            ))}
-                            <option value="custom">Lainnya...</option>
-                          </select>
-                          {editQuestCategory === 'custom' && (
+                          <div className="edit-options-flex">
                             <input
-                              type="text"
-                              placeholder="Kategori"
-                              value={editCustomCategory}
-                              onChange={(e) => setEditCustomCategory(e.target.value)}
-                              className="quest-input"
-                              style={{width: '80px'}}
+                              type="number"
+                              value={editQuestMinutes}
+                              onChange={(e) => setEditQuestMinutes(e.target.value)}
+                              className="quest-input minutes-input"
+                              min="1"
+                              placeholder="Waktu"
                             />
+                            <select 
+                              value={editQuestTimeUnit} 
+                              onChange={(e) => setEditQuestTimeUnit(e.target.value)}
+                              className="quest-category-select"
+                            >
+                              <option value="m">Menit</option>
+                              <option value="h">Jam</option>
+                            </select>
+                            <select 
+                              value={editQuestCategory} 
+                              onChange={(e) => setEditQuestCategory(e.target.value)}
+                              className="quest-category-select"
+                            >
+                              {CATEGORIES.map(c => (
+                                <option key={c.id} value={c.id}>{c.label}</option>
+                              ))}
+                              <option value="custom">Lainnya...</option>
+                            </select>
+                            {editQuestCategory === 'custom' && (
+                              <input
+                                type="text"
+                                placeholder="Kategori"
+                                value={editCustomCategory}
+                                onChange={(e) => setEditCustomCategory(e.target.value)}
+                                className="quest-input"
+                              />
+                            )}
+                          </div>
+                          <div className="edit-actions">
+                            <button className="btn btn-primary" onClick={() => handleSaveEdit(quest.id)}>
+                              Simpan
+                            </button>
+                            <button className="btn btn-secondary" onClick={() => setEditingQuestId(null)}>
+                              Batal
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div 
+                      key={quest.id} 
+                      className={`quest-card glass-panel ${isCompleted ? 'completed' : ''}`}
+                    >
+                      <button 
+                        className={`quest-check-btn ${isCompleted ? 'checked' : ''}`}
+                        onClick={() => handleCheckQuest(quest.id)}
+                        title={isCompleted ? "Sudah diselesaikan hari ini" : "Ceklis quest ini"}
+                      >
+                        {isCompleted && <Check size={16} />}
+                      </button>
+
+                      <div className="quest-content" onClick={() => handleEditClick(quest)}>
+                        <h3 className="quest-name">{quest.name}</h3>
+                        <div className="quest-meta">
+                          <span className="quest-category-badge">
+                            {getCategoryIcon(quest.category)}
+                            {getCategoryLabel(quest.category)}
+                          </span>
+                          {quest.estimatedMinutes && (
+                            <span className="quest-time-badge">
+                              ⏳ {quest.estimatedMinutes}m
+                            </span>
                           )}
+                          <span className="quest-xp-badge">+10 XP</span>
                         </div>
-                        <div style={{display: 'flex', gap: '4px'}}>
-                          <button onClick={() => handleSaveEdit(quest.id)} className="btn btn-primary" style={{padding: '6px 12px'}}>Simpan</button>
-                          <button onClick={() => setEditingQuestId(null)} className="btn btn-secondary" style={{padding: '6px 12px'}}>Batal</button>
-                        </div>
+                      </div>
+
+                      <div className="quest-actions">
+                        <button 
+                          className="icon-action-btn"
+                          onClick={() => handleViewHistory(quest)}
+                          title="Lihat riwayat penyelesaian"
+                        >
+                          <History size={16} />
+                        </button>
+                        <button 
+                          className="icon-action-btn delete"
+                          onClick={() => handleDeleteQuest(quest.id)}
+                          title="Hapus quest"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </div>
                   );
-                }
-
-                return (
-                  <div key={quest.id} className={`quest-card glass-panel ${isCompleted ? 'completed animate-pop' : ''}`}>
-                    <div className="quest-content">
-                      <div className="quest-header-row">
-                        <h3>{quest.name}</h3>
-                        <span className="quest-category-badge">
-                          {getCategoryIcon(quest.category)}
-                          {getCategoryLabel(quest.category)}
-                        </span>
-                        {isCompleted && (
-                          <span className="quest-category-badge" style={{background: 'var(--success-color)', color: '#fff', marginLeft: '8px'}}>
-                            Selesai
-                          </span>
-                        )}
-                        {quest.estimatedMinutes && (
-                          <span className="quest-minutes-badge" style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '8px', padding: '2px 6px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px'}}>
-                            ⏳ {quest.estimatedMinutes >= 60 && quest.estimatedMinutes % 60 === 0 ? `${quest.estimatedMinutes / 60}j` : `${quest.estimatedMinutes}m`}
-                          </span>
-                        )}
-                      </div>
-                      <p className="xp-reward">+10 XP</p>
-                    </div>
-                    <div className="quest-actions">
-                      <button 
-                        className="quest-edit-btn"
-                        onClick={() => handleEditClick(quest)}
-                        title="Edit Quest"
-                        style={{background: 'none', border: 'none', cursor: 'pointer', padding: '8px', color: 'var(--text-secondary)'}}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                      </button>
-                      <button 
-                        className="quest-edit-btn"
-                        onClick={() => handleViewHistory(quest)}
-                        title="History Quest"
-                        style={{background: 'none', border: 'none', cursor: 'pointer', padding: '8px', color: 'var(--text-secondary)'}}
-                      >
-                        <History size={18} />
-                      </button>
-                      <button 
-                        className="quest-delete-btn"
-                        onClick={() => handleDeleteQuest(quest.id)}
-                        title="Hapus Quest"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                      <button 
-                        className={`quest-check-btn ${isCompleted ? 'is-completed' : ''}`}
-                        onClick={() => handleCheckQuest(quest.id)}
-                      >
-                        {isCompleted ? <Check size={20} /> : <Check size={20} style={{opacity: 0.3}} />}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-              {quests.length === 0 && (
-                <div className="empty-state glass-panel">
-                  <div className="empty-icon animate-float"><Target size={48} color="var(--primary-color)" /></div>
-                  <h3>Mulai Petualanganmu!</h3>
-                  <p>Buat quest pertamamu hari ini dan bangun kebiasaan produktif selama liburan.</p>
-                </div>
+                })
               )}
             </div>
           </section>
         </div>
 
-        {/* Right Column: Leaderboard */}
+        {/* Right Column: Leaderboard & Social Sidebar */}
         <div className="dashboard-sidebar">
+          
+          {/* Social Prompt / Friends Banner */}
+          <div className="social-promo-card glass-panel">
+            <div className="social-promo-header">
+              <div className="social-icon-box">
+                <Users size={20} color="#38bdf8" />
+              </div>
+              <div>
+                <h4>Social & Friends</h4>
+                <p>
+                  {userGlobalRank ? `Peringkat #${userGlobalRank} dari ${leaderboard.length} user` : 'Pantau streak temanmu'}
+                </p>
+              </div>
+            </div>
+            <button 
+              type="button" 
+              className="btn btn-secondary social-action-btn"
+              onClick={() => setShowFriendsModal(true)}
+            >
+              <UserPlus size={15} /> Cari & Kelola Teman
+              {friendRequests.length > 0 && (
+                <span className="requests-bubble">{friendRequests.length}</span>
+              )}
+            </button>
+          </div>
+
           {/* Leaderboard Card */}
           <div className="leaderboard-card glass-panel">
-            <div className="leaderboard-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-              <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+            <div className="leaderboard-header">
+              <div className="leaderboard-header-title">
                 <h3 className="sidebar-title">LEADERBOARD</h3>
                 <Trophy size={18} className="text-gradient" />
               </div>
               <button 
-                className="btn btn-primary" 
-                style={{padding: '4px 10px', fontSize: '12px'}}
+                className="btn btn-primary btn-friends-shortcut" 
                 onClick={() => setShowFriendsModal(true)}
               >
-                <UserPlus size={14} style={{marginRight: '4px', display: 'inline-block'}} /> Friends
-                {friendRequests.length > 0 && <span style={{background: 'red', color: 'white', borderRadius: '50%', padding: '2px 6px', marginLeft: '4px'}}>{friendRequests.length}</span>}
+                <UserPlus size={13} /> Friends
+                {friendRequests.length > 0 && (
+                  <span className="requests-bubble">{friendRequests.length}</span>
+                )}
               </button>
             </div>
             
@@ -745,13 +866,13 @@ const Dashboard = () => {
                 className={`tab-btn ${activeTab === 'global' ? 'active' : ''}`}
                 onClick={() => setActiveTab('global')}
               >
-                Global
+                Global ({leaderboard.length})
               </button>
               <button 
                 className={`tab-btn ${activeTab === 'friends' ? 'active' : ''}`}
                 onClick={() => setActiveTab('friends')}
               >
-                Friends
+                Friends ({friendsLeaderboard.length})
               </button>
             </div>
             
@@ -760,7 +881,9 @@ const Dashboard = () => {
                 const leaderXp = getXpLevel(leader.totalXp);
                 return (
                   <div key={leader.id} className={`leaderboard-item ${leader.id === user.id ? 'is-me' : ''}`}>
-                    <div className="rank">#{index + 1}</div>
+                    <div className={`rank ${index === 0 ? 'top-1' : index === 1 ? 'top-2' : index === 2 ? 'top-3' : ''}`}>
+                      #{index + 1}
+                    </div>
                     <div className="friend-avatar">
                       <User size={16} />
                     </div>
@@ -783,10 +906,19 @@ const Dashboard = () => {
                   </div>
                 );
               })}
-              {activeTab === 'friends' && friendsLeaderboard.length === 1 && (
-                <div className="empty-friends" style={{marginTop: '20px'}}>
-                  <Users size={32} color="var(--text-muted)" style={{marginBottom: '1rem'}} />
-                  <p>Kamu belum memiliki teman. Klik tombol Friends di atas untuk mencari teman!</p>
+
+              {activeTab === 'friends' && friendsLeaderboard.length <= 1 && (
+                <div className="empty-friends">
+                  <Users size={32} color="var(--text-muted)" style={{marginBottom: '0.75rem'}} />
+                  <p>Kamu belum memiliki teman di leaderboard.</p>
+                  <button 
+                    type="button" 
+                    className="btn btn-primary"
+                    style={{marginTop: '10px', fontSize: '13px'}}
+                    onClick={() => setShowFriendsModal(true)}
+                  >
+                    <UserPlus size={14} /> Cari Teman Sekarang
+                  </button>
                 </div>
               )}
             </div>
@@ -800,27 +932,38 @@ const Dashboard = () => {
         <div className="modal-overlay" onClick={() => setShowFriendsModal(false)}>
           <div className="modal-content glass-panel" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Manage Friends</h2>
+              <h2>Kelola Teman & Permintaan</h2>
               <button className="icon-btn" onClick={() => setShowFriendsModal(false)}><X size={24} /></button>
             </div>
             
             <div className="modal-body">
-              {/* Friend Requests */}
+              {/* Friend Requests Section */}
               {friendRequests.length > 0 && (
                 <div className="friend-requests-section">
-                  <h3>Friend Requests ({friendRequests.length})</h3>
+                  <h3>Permintaan Pertemanan Masuk ({friendRequests.length})</h3>
                   <div className="request-list">
                     {friendRequests.map((req: any) => (
                       <div key={req.requestId} className="request-item">
                         <div className="request-info">
-                          <User size={32} style={{background: 'var(--bg-card)', padding: '6px', borderRadius: '50%'}}/>
-                          <span><strong>{req.name}</strong> wants to be your friend</span>
+                          <User size={30} className="request-user-icon" />
+                          <div>
+                            <div className="req-name"><strong>{req.name}</strong></div>
+                            <div className="req-sub">@{req.username || 'user'}</div>
+                          </div>
                         </div>
                         <div className="request-actions">
-                          <button className="btn btn-primary" style={{padding: '6px 12px', background: 'var(--success-color)'}} onClick={() => handleRespondRequest(req.requestId, 'accept')}>
+                          <button 
+                            className="btn btn-primary" 
+                            style={{padding: '6px 12px', background: 'var(--success-color)'}} 
+                            onClick={() => handleRespondRequest(req.requestId, 'accept')}
+                          >
                             Terima
                           </button>
-                          <button className="btn" style={{padding: '6px 12px', background: 'rgba(239, 68, 68, 0.2)', color: 'var(--danger-color)'}} onClick={() => handleRespondRequest(req.requestId, 'reject')}>
+                          <button 
+                            className="btn" 
+                            style={{padding: '6px 12px', background: 'rgba(239, 68, 68, 0.2)', color: 'var(--danger-color)'}} 
+                            onClick={() => handleRespondRequest(req.requestId, 'reject')}
+                          >
                             Tolak
                           </button>
                         </div>
@@ -830,40 +973,44 @@ const Dashboard = () => {
                 </div>
               )}
 
-              {/* Search Friends */}
-              <div className="search-friends-section" style={{marginTop: friendRequests.length > 0 ? '24px' : '0'}}>
-                <h3>Cari Teman Baru</h3>
+              {/* Search Friends Section */}
+              <div className="search-friends-section">
+                <h3>Cari Teman Berdasarkan Username</h3>
                 <form onSubmit={handleSearchFriends} className="search-form">
-                  <div className="search-input-wrapper" style={{display: 'flex', gap: '8px', marginTop: '12px'}}>
+                  <div className="search-input-wrapper">
                     <input 
                       type="text" 
-                      placeholder="Cari berdasarkan username..." 
+                      placeholder="Ketik username teman (min. 3 karakter)..." 
                       className="quest-input"
                       value={friendSearchQuery}
                       onChange={(e) => setFriendSearchQuery(e.target.value)}
-                      style={{flex: 1}}
                     />
-                    <button type="submit" className="btn btn-primary" style={{padding: '0 16px'}}><Search size={18} /></button>
+                    <button type="submit" className="btn btn-primary search-btn">
+                      <Search size={18} />
+                    </button>
                   </div>
                 </form>
                 
-                <div className="search-results" style={{marginTop: '16px'}}>
+                <div className="search-results">
                   {searchResults.map((result: any) => (
-                    <div key={result.id} className="search-result-item" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'var(--bg-card)', borderRadius: '8px', marginBottom: '8px'}}>
-                      <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+                    <div key={result.id} className="search-result-item">
+                      <div className="search-result-user">
                         <User size={20} />
                         <div>
-                          <h4 style={{margin: 0}}>{result.name}</h4>
-                          <span style={{fontSize: '12px', color: 'var(--text-muted)'}}>@{result.username || 'user'} · {result.totalXp} XP</span>
+                          <h4>{result.name}</h4>
+                          <span>@{result.username || 'user'} · {result.totalXp} XP</span>
                         </div>
                       </div>
-                      <button className="btn btn-primary" style={{padding: '6px 12px', fontSize: '12px'}} onClick={() => handleSendRequest(result.id)}>
-                        Add Friend
+                      <button 
+                        className="btn btn-primary btn-add-friend" 
+                        onClick={() => handleSendRequest(result.id)}
+                      >
+                        <UserPlus size={14} /> Add Friend
                       </button>
                     </div>
                   ))}
                   {searchResults.length === 0 && friendSearchQuery.length >= 3 && (
-                     <p style={{textAlign: 'center', color: 'var(--text-muted)', marginTop: '16px'}}>Gunakan tombol cari setelah mengetik username minimal 3 karakter.</p>
+                     <p className="search-empty-text">Tidak ada user ditemukan atau gunakan tombol cari.</p>
                   )}
                 </div>
               </div>
@@ -877,25 +1024,25 @@ const Dashboard = () => {
         <div className="modal-overlay" onClick={() => setShowHistoryModal(false)}>
           <div className="modal-content glass-panel" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>History: {historyQuest.name}</h2>
+              <h2>Riwayat: {historyQuest.name}</h2>
               <button className="icon-btn" onClick={() => setShowHistoryModal(false)}><X size={24} /></button>
             </div>
             <div className="modal-body" style={{maxHeight: '400px', overflowY: 'auto'}}>
               {loadingHistory ? (
-                <div style={{textAlign: 'center', padding: '20px', color: 'var(--text-muted)'}}>Memuat history...</div>
+                <div style={{textAlign: 'center', padding: '20px', color: 'var(--text-muted)'}}>Memuat riwayat...</div>
               ) : questHistoryData.length === 0 ? (
                 <div style={{textAlign: 'center', padding: '20px', color: 'var(--text-muted)'}}>
-                  Quest ini belum pernah diselesaikan.
+                  Quest ini belum pernah diselesaikan sebelumnya.
                 </div>
               ) : (
                 <div style={{display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px'}}>
                   {questHistoryData.map((record: any, idx: number) => (
-                    <div key={record.id} style={{display: 'flex', justifyContent: 'space-between', padding: '12px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)'}}>
-                      <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+                    <div key={record.id} className="history-item-row">
+                      <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
                         <Check size={16} color="var(--success-color)" />
                         <span>Selesai ke-{questHistoryData.length - idx}</span>
                       </div>
-                      <span style={{color: 'var(--text-muted)', fontSize: '14px'}}>
+                      <span style={{color: 'var(--text-muted)', fontSize: '13px'}}>
                         {new Date(record.completedAt).toLocaleDateString()} {new Date(record.completedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                       </span>
                     </div>

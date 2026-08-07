@@ -338,6 +338,15 @@ Semua perbaikan ini sudah masuk ke commit `aa854a6`:
 | **Security Hardening** | Rate limit, Zod validation, SQL escape, route guards, error sanitization |
 | **XP Tier & Grace Period UI** | Implementasi XP Level Tiers (Rookie → Grand Master), progress bar, realtime Grace Period countdown & feedback di Dashboard dan Profile |
 
+### ADR-010: Audit UX & Onboarding Overhaul (07 Aug 2026)
+- **Konteks**: Berdasarkan hasil Quick Audit, onboarding lama belum memandu user menyusun 3 habit starter, landing page belum memiliki matrix perbandingan value prop vs kompetitor (Habitica/Todoist) serta penjelasan mekanisme Bara, dashboard butuh highlight metrik utama (Hero Card), dan fitur social butuh visibilitas lebih tinggi.
+- **Keputusan**:
+  1. **Multi-Step Onboarding (1-Minute Setup)**: Flow 3 langkah (Username check → Pick category & 3 starter habits/custom → Mini tutorial Bara) dengan auto-create starter quests ke backend.
+  2. **Landing Page Value Prop & Bara Explainer**: Comparison matrix table vs Habitica & Todoist, 3-step visual guide, dan interactive animated HTML/CSS demo 3 state Bara Api (Menyala, Grace Period, Pulih).
+  3. **Streak Hero Metric Card**: Highlight primary metric visual dengan glowing flame, streak counter besar, status Bara real-time, dan rekor streak tertinggi.
+  4. **Social & Notification Visibility**: Banner promo pertemanan di sidebar, indikator peringkat user, dan real-time friend request counter badge di Navbar.
+  5. **Mobile Quick-Add Habit**: Quick-add mode 1-baris responsif dengan expandable detail options (+ Waktu & Kategori) untuk touch targets yang nyaman.
+
 ---
 
 ## 📊 Status Terakhir (Per 07 Agustus 2026)
@@ -351,10 +360,11 @@ Semua perbaikan ini sudah masuk ke commit `aa854a6`:
 | **Cron Job** | 🟢 Active | Berjalan setiap 00:00 UTC via Vercel Cron |
 | **Security** | 🟢 Hardened | 27/27 security tests passed |
 | **XP Level & Grace Period** | 🟢 Complete | 5 Tier leveling, progress bar, real-time countdown di Dashboard & Profile |
-| **Branding & Favicon** | 🟢 Updated | Tab title & Bara Flame favicon matching Dashboard UI |
+| **Onboarding Wizard** | 🟢 Complete | 3-step wizard (Username, 3 starter habits, Bara mini tutorial) |
+| **Landing Page & Explainer** | 🟢 Complete | Comparison Matrix vs Habitica/Todoist & Animated Bara Explainer |
+| **Streak Hero & Mobile UX** | 🟢 Complete | Streak Hero Card, social activity banner, friend request badge di Navbar & quick-add |
 | **Unit Tests** | 🟢 Active | Unit tests untuk security & XP math (7/7 passed) |
-| **E2E Tests** | 🟡 Manual | Playwright tests tersedia tapi perlu koneksi database aktif |
-| **Mobile Responsive** | 🟢 Responsive | Dashboard, Profile, Leaderboard, & Grace alert fully responsive |
+| **Mobile Responsive** | 🟢 Responsive | Dashboard, Profile, Leaderboard, & Onboarding fully responsive |
 
 ---
 
