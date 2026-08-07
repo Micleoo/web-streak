@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import Navbar from '../components/Navbar';
-import { User, Flame, Trophy, Star, Target, Loader2, Award, Zap, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { User, Flame, Trophy, Star, Target, Loader2, Award, Zap, AlertTriangle, Clock, ShieldCheck } from 'lucide-react';
 import { getXpLevel } from '../lib/xpUtils';
 import './Profile.css';
 
@@ -23,6 +24,7 @@ export default function Profile() {
   const { profile, loading, refreshProfile } = useAuth();
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
+  const navigate = useNavigate();
   
   // Edit state
   const [isEditing, setIsEditing] = useState(false);
@@ -30,6 +32,43 @@ export default function Profile() {
   const [editUsername, setEditUsername] = useState('');
   const [saving, setSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<{text: string, type: 'error' | 'success'} | null>(null);
+
+  // Grace period countdown
+  const [graceCountdown, setGraceCountdown] = useState<{
+    text: string;
+    isUrgent: boolean;
+    expired: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!profile?.streakAtRisk || !profile?.gracePeriodUntil) {
+      setGraceCountdown(null);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const now = new Date().getTime();
+      const target = new Date(profile.gracePeriodUntil!).getTime();
+      const diff = target - now;
+
+      if (diff <= 0) {
+        setGraceCountdown({ text: '00:00:00', isUrgent: true, expired: true });
+        return;
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const text = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+      const isUrgent = hours < 12;
+      setGraceCountdown({ text, isUrgent, expired: false });
+    };
+
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
+    return () => clearInterval(timer);
+  }, [profile?.streakAtRisk, profile?.gracePeriodUntil]);
 
   const showToast = (text: string, type: 'error' | 'success') => {
     setToastMessage({text, type});
@@ -175,6 +214,48 @@ export default function Profile() {
           </div>
         </div>
 
+        {/* Grace Period Warning Banner */}
+        {profile?.streakAtRisk && (
+          <div className="profile-grace-banner" id="profile-grace-alert">
+            <div className="profile-grace-inner">
+              <div className="profile-grace-icon-wrap">
+                <AlertTriangle size={28} className="grace-pulse-icon" />
+              </div>
+              <div className="profile-grace-body">
+                <div className="profile-grace-title">
+                  🔥 Bara Streakmu Dalam Bahaya!
+                  <span className={`profile-grace-badge ${graceCountdown?.isUrgent ? 'urgent' : ''}`}>
+                    <Clock size={12} />
+                    {graceCountdown ? graceCountdown.text : '--:--:--'}
+                  </span>
+                </div>
+                <p className="profile-grace-desc">
+                  {graceCountdown?.expired
+                    ? 'Grace period kamu sudah habis. Streak akan di-reset. Selesaikan quest sekarang untuk memulai streak baru!'
+                    : 'Kamu belum menyelesaikan quest kemarin. Selesaikan minimal 1 quest sebelum waktu habis untuk menyelamatkan streak-mu dan mendapatkan bonus +20 XP!'}
+                </p>
+                <div className="profile-grace-steps">
+                  <div className="grace-step">
+                    <ShieldCheck size={14} />
+                    <span>Selesaikan 1 quest di Dashboard</span>
+                  </div>
+                  <div className="grace-step">
+                    <Flame size={14} />
+                    <span>Streak kamu otomatis pulih + bonus XP</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="profile-grace-cta"
+              onClick={() => navigate('/')}
+            >
+              Selesaikan Quest Sekarang →
+            </button>
+          </div>
+        )}
+
         {/* XP Level Tier Card */}
         <div className="profile-xp-card glass-panel">
           <div className="profile-xp-header">
@@ -205,11 +286,11 @@ export default function Profile() {
         </div>
 
         <div className="stats-grid">
-          <div className="stat-card glass-panel">
-            <Flame className="stat-icon orange" />
+          <div className={`stat-card glass-panel ${profile?.streakAtRisk ? 'profile-stat-at-risk' : ''}`}>
+            <Flame className={`stat-icon ${profile?.streakAtRisk ? 'at-risk-icon' : 'orange'}`} />
             <div className="stat-content">
-              <h3>{profile?.currentStreak}</h3>
-              <p>Current Streak</p>
+              <h3 style={profile?.streakAtRisk ? {color: '#f87171'} : {}}>{profile?.currentStreak}</h3>
+              <p>{profile?.streakAtRisk ? '⚠️ Bara Padam' : 'Current Streak'}</p>
             </div>
           </div>
           

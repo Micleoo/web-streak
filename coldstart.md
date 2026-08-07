@@ -1,7 +1,7 @@
 # 🧊 COLDSTART.md — Streak App
 > File ini berisi semua informasi yang dibutuhkan agar siapapun (atau AI) bisa langsung memahami dan melanjutkan project ini tanpa perlu bertanya dari nol.
 
-**Last Updated:** 06 Agustus 2026  
+**Last Updated:** 07 Agustus 2026  
 **Penulis:** Tim Intern SF Group (Michael, Daniel, dll.)
 
 ---
@@ -318,9 +318,9 @@ Semua perbaikan ini sudah masuk ke commit `aa854a6`:
 **Keputusan:** Diterapkan sistem leveling 5 tier (🌱 Rookie: 0-199 XP, 🔥 Challenger: 200-499 XP, ⚡ Warrior: 500-999 XP, 🏆 Legend: 1000-1999 XP, 👑 Grand Master: 2000+ XP) dengan progress bar visual di Dashboard, Profile, dan badge di Leaderboard.  
 **Alasan:** Memberikan visual feedback yang jelas dan target jangka pendek/menengah untuk akumulasi XP user serta membuat ranking XP di leaderboard terasa bermakna.
 
-### ADR-009: Real-time Grace Period Countdown & Actionable Alert
-**Keputusan:** Grace Period 48 jam dilengkapi countdown timer real-time (update per detik), peringatan level urgensi (<12 jam), direct scroll-to-quest CTA, serta feedback visual toast saat Bara berhasil dipulihkan (+30 XP).  
-**Alasan:** Memastikan user langsung menyadari status Bara yang padam dan mengetahui batas waktu pemulihan sebelum streak direset permanen.
+### ADR-009: Real-time Grace Period Countdown & Actionable Alert (Dashboard & Profile)
+**Keputusan:** Grace Period 48 jam dilengkapi countdown timer real-time (update per detik), peringatan level urgensi (<12 jam), direct scroll-to-quest CTA, 2-step rescue guide di halaman Profile, serta feedback visual toast saat Bara berhasil dipulihkan (+20 XP).  
+**Alasan:** Memastikan user langsung menyadari status Bara yang padam di halaman manapun (Dashboard maupun Profile) dan mengetahui batas waktu pemulihan sebelum streak direset permanen tanpa harus memahami mekanisme backend.
 
 ---
 
@@ -336,21 +336,21 @@ Semua perbaikan ini sudah masuk ke commit `aa854a6`:
 | **PRD Refinement** | Ubah istilah "streak" jadi "Bara", hapus slot mekanisme, polish UX |
 | **Testing** | Setup Vitest, Playwright E2E, TestSprite AI testing (100% pass) |
 | **Security Hardening** | Rate limit, Zod validation, SQL escape, route guards, error sanitization |
-| **XP Tier & Grace Period UI** | Implementasi XP Level Tiers (Rookie → Grand Master), progress bar, realtime Grace Period countdown & feedback |
+| **XP Tier & Grace Period UI** | Implementasi XP Level Tiers (Rookie → Grand Master), progress bar, realtime Grace Period countdown & feedback di Dashboard dan Profile |
 
 ---
 
-## 📊 Status Terakhir (Per 06 Agustus 2026)
+## 📊 Status Terakhir (Per 07 Agustus 2026)
 
 | Aspek | Status | Catatan |
 |---|---|---|
 | **Production** | 🟢 Live | https://web-streak.vercel.app |
-| **GitHub Repo** | 🟢 Up-to-date | Branch `main`, commit terbaru: `251ec1f` |
+| **GitHub Repo** | 🟢 Up-to-date | Branch `main` |
 | **Database** | 🟢 Running | PostgreSQL di Supabase |
 | **Google OAuth** | 🟢 Working | Sudah dikonfigurasi via Google Cloud Console |
 | **Cron Job** | 🟢 Active | Berjalan setiap 00:00 UTC via Vercel Cron |
 | **Security** | 🟢 Hardened | 27/27 security tests passed |
-| **XP Level & Grace Period** | 🟢 Complete | 5 Tier leveling, progress bar, real-time countdown |
+| **XP Level & Grace Period** | 🟢 Complete | 5 Tier leveling, progress bar, real-time countdown di Dashboard & Profile |
 | **Branding & Favicon** | 🟢 Updated | Tab title & Bara Flame favicon matching Dashboard UI |
 | **Unit Tests** | 🟢 Active | Unit tests untuk security & XP math (7/7 passed) |
 | **E2E Tests** | 🟡 Manual | Playwright tests tersedia tapi perlu koneksi database aktif |
