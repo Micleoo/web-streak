@@ -6,6 +6,7 @@ export default mergeConfig(viteConfig, defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    pool: 'threads',
     environmentMatchGlobs: [
       ['server/**', 'node'],
     ],
