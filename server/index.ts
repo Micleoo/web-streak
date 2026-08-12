@@ -325,7 +325,9 @@ app.post('/api/onboarding', requireAuth, async (c) => {
       .update(user)
       .set({ 
         username: cleanUsername,
-        favoriteCategories: favoriteCategories ? JSON.stringify(favoriteCategories) : null
+        favoriteCategories: favoriteCategories ? JSON.stringify(favoriteCategories) : null,
+        onboardingCompleted: true,
+        onboardingCompletedAt: new Date()
       })
       .where(eq(user.id, session.user.id));
       

@@ -17,9 +17,18 @@ export const user = pgTable("user", {
   favoriteCategories: text("favoriteCategories"), // store as JSON string
   lastQuestCompletedAt: timestamp("lastQuestCompletedAt"),
   
-  // Gamification fields
+  // gamification fields
   streakAtRisk: boolean("streakAtRisk").default(false).notNull(),
   gracePeriodUntil: timestamp("gracePeriodUntil"),
+  
+  // onboarding
+  onboardingCompleted: boolean("onboardingCompleted").default(false).notNull(),
+  onboardingCompletedAt: timestamp("onboardingCompletedAt"),
+  
+  // notifications
+  notificationEnabled: boolean("notificationEnabled").default(true).notNull(),
+  lastReminderSentAt: timestamp("lastReminderSentAt"),
+  timezone: text("timezone").default('UTC'),
 });
 
 export const session = pgTable("session", {

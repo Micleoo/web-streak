@@ -8,6 +8,8 @@ import {
 import Navbar from '../components/Navbar';
 import { useAuth } from '../contexts/AuthContext';
 import { getXpLevel } from '../lib/xpUtils';
+import { QuestCelebration } from '../components/QuestCelebration';
+import { useQuestCompletion } from '../hooks/useQuestCompletion';
 import './Dashboard.css';
 
 interface Quest {
@@ -86,6 +88,8 @@ const Dashboard = () => {
   const [historyQuest, setHistoryQuest] = useState<Quest | null>(null);
   const [questHistoryData, setQuestHistoryData] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  
+  const { completeQuest, isLoading: isCompletingQuest, celebrationState } = useQuestCompletion();
   
   const [graceCountdown, setGraceCountdown] = useState<{
     text: string;
@@ -374,29 +378,22 @@ const Dashboard = () => {
   };
 
   const handleCheckQuest = async (questId: string) => {
-    if (!user || !profile) return;
+    if (!user || !profile || isCompletingQuest) return;
 
-    try {
-      const res = await fetch(`/api/quests/${questId}/check`, { method: 'POST' });
-      const data = await res.json();
-      if (data.error) {
-         showToast(data.error, 'error');
-         fetchData();
-         return;
+    const quest = quests.find(q => q.id === questId);
+    
+    await completeQuest({
+      questId,
+      questName: quest?.name,
+      onSuccess: async () => {
+        await refreshProfile();
+        fetchData();
+      },
+      onError: (msg) => {
+        showToast(msg, 'error');
+        fetchData();
       }
-      
-      if (data.gracePeriodRestored) {
-        showToast('🔥 BARA BERHASIL DIPULIHKAN! Bonus +30 XP didapatkan!', 'success');
-      } else if (data.message) {
-        showToast(data.message, 'success');
-      }
-
-      await refreshProfile();
-      fetchData();
-    } catch (e) {
-      console.error(e);
-      fetchData();
-    }
+    });
   };
 
   const getCategoryIcon = (catId?: string) => {
@@ -437,6 +434,7 @@ const Dashboard = () => {
   return (
     <div className="dashboard-page">
       <Navbar />
+      <QuestCelebration {...celebrationState} />
       
       <main className="dashboard-container container">
         {/* Toast Notification */}

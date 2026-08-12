@@ -16,6 +16,7 @@
   "dependencies": {
     "@hono/node-server": "^2.0.12",
     "better-auth": "^1.6.25",
+    "canvas-confetti": "^1.9.4",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
@@ -27,6 +28,7 @@
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",
     "sirv": "^3.0.2",
+    "web-push": "^3.6.7",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -34,10 +36,12 @@
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
+    "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^24.13.2",
     "@types/pg": "^8.20.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^6.0.3",
     "drizzle-kit": "^0.31.10",
     "jsdom": "^29.1.1",

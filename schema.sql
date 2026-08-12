@@ -16,7 +16,16 @@ CREATE TABLE users (
   last_quest_completed_at TIMESTAMPTZ,
 
   total_xp                INT DEFAULT 0 CHECK (total_xp >= 0),
-  favorite_categories     TEXT[] DEFAULT '{}'
+  favorite_categories     TEXT[] DEFAULT '{}',
+  
+  -- Onboarding
+  onboarding_completed    BOOLEAN DEFAULT false,
+  onboarding_completed_at TIMESTAMPTZ,
+  
+  -- Notifications
+  notification_enabled    BOOLEAN DEFAULT true,
+  last_reminder_sent_at   TIMESTAMPTZ,
+  timezone                TEXT DEFAULT 'UTC'
 );
 
 -- 2. Create Quest Templates (reusable)
