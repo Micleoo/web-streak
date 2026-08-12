@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Flame, Check, Plus, Trophy, User, Trash2, Code, Dumbbell, BookOpen, 
   Gamepad2, Users, Home, Target, Search, X, UserPlus, AlertTriangle, 
-  History, Clock, ArrowDown, Sparkles, SlidersHorizontal, ChevronDown, ChevronUp, Share2
+  History, Clock, ArrowDown, Sparkles, SlidersHorizontal, ChevronDown, ChevronUp, Share2, Award
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../contexts/AuthContext';
 import { getXpLevel } from '../lib/xpUtils';
 import { QuestCelebration } from '../components/QuestCelebration';
 import { useQuestCompletion } from '../hooks/useQuestCompletion';
+import { ACHIEVEMENT_INFO } from '../constants/achievements';
 import './Dashboard.css';
 
 interface Quest {
@@ -72,6 +73,7 @@ const Dashboard = () => {
   };
   
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
+  const [achievements, setAchievements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [activeTab, setActiveTab] = useState<'global' | 'friends'>('global');
@@ -187,11 +189,12 @@ const Dashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [questsRes, leaderboardRes, friendsRes, requestsRes] = await Promise.all([
+      const [questsRes, leaderboardRes, friendsRes, requestsRes, achievementsRes] = await Promise.all([
         fetch('/api/quests').then(r => r.json()),
         fetch('/api/leaderboard').then(r => r.json()),
         fetch('/api/leaderboard?tab=friends').then(r => r.json()),
-        fetch('/api/friends/requests').then(r => r.json())
+        fetch('/api/friends/requests').then(r => r.json()),
+        fetch('/api/achievements').then(r => r.json())
       ]);
       
       if (questsRes.quests) {
@@ -203,6 +206,7 @@ const Dashboard = () => {
       setLeaderboard(parseLeaderboardData(leaderboardRes));
       setFriendsLeaderboard(parseLeaderboardData(friendsRes));
       if (Array.isArray(requestsRes)) setFriendRequests(requestsRes);
+      if (Array.isArray(achievementsRes)) setAchievements(achievementsRes);
     } catch (e) {
       console.error(e);
     }
@@ -430,6 +434,20 @@ const Dashboard = () => {
   const isBaraActive = profile.currentStreak >= 3 && !profile.streakAtRisk;
   const isGraceActive = profile.streakAtRisk;
   const hasCompletedQuestToday = completedQuestIds.size > 0;
+
+  // Determine achievement preview (1 unlocked, 1 next to unlock)
+  const achievementPreview = useMemo(() => {
+    const unlockedTypes = new Set(achievements.map(a => a.achievementType));
+    
+    // Sort all possible achievements (assuming ordered by difficulty)
+    const allAchs = Object.values(ACHIEVEMENT_INFO);
+    const unlocked = allAchs.filter(a => unlockedTypes.has(a.id)).slice(0, 1); // latest 1
+    
+    // Find next locked achievement
+    const locked = allAchs.filter(a => !unlockedTypes.has(a.id)).slice(0, 2);
+    
+    return { unlocked, locked };
+  }, [achievements]);
 
   return (
     <div className="dashboard-page">
@@ -839,6 +857,45 @@ const Dashboard = () => {
                 <span className="requests-bubble">{friendRequests.length}</span>
               )}
             </button>
+          </div>
+
+          {/* Achievement Preview Card */}
+          <div className="achievement-preview-card glass-panel" onClick={() => navigate('/profile')} style={{cursor: 'pointer'}}>
+            <div className="leaderboard-header">
+              <h3 className="sidebar-title">ACHIEVEMENTS</h3>
+              <Award size={18} className="text-gradient" />
+            </div>
+            
+            <div className="achievement-preview-list" style={{display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '12px'}}>
+              {achievementPreview.unlocked.map(ach => {
+                const Icon = ach.icon;
+                return (
+                  <div key={`unlocked-${ach.id}`} className="achievement-mini-card unlocked" style={{display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', borderLeft: `3px solid ${ach.color}`}}>
+                    <div style={{color: ach.color}}><Icon size={20} /></div>
+                    <div>
+                      <h4 style={{fontSize: '13px', margin: 0}}>{ach.label}</h4>
+                      <span style={{fontSize: '11px', color: 'var(--success-color)'}}>Unlocked!</span>
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {achievementPreview.locked.map((ach, idx) => {
+                const Icon = ach.icon;
+                return (
+                  <div key={`locked-${ach.id}`} className="achievement-mini-card locked" style={{display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', opacity: 0.6}}>
+                    <div style={{color: '#666'}}><Icon size={20} /></div>
+                    <div>
+                      <h4 style={{fontSize: '13px', margin: 0, color: '#999'}}>{ach.label}</h4>
+                      <span style={{fontSize: '11px', color: 'var(--text-muted)'}}>{ach.description}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{textAlign: 'center', marginTop: '12px'}}>
+              <span style={{fontSize: '12px', color: 'var(--primary-color)'}}>Lihat Semua di Profile &rarr;</span>
+            </div>
           </div>
 
           {/* Leaderboard Card */}

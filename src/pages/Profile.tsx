@@ -13,13 +13,7 @@ interface Achievement {
   unlockedAt: string;
 }
 
-const ACHIEVEMENT_INFO: Record<string, { label: string, icon: any, color: string }> = {
-  'Week Warrior': { label: 'Week Warrior', icon: Flame, color: '#f97316' },
-  'Fortnight Fighter': { label: 'Fortnight Fighter', icon: Zap, color: '#eab308' },
-  'Monthly Master': { label: 'Monthly Master', icon: Trophy, color: '#3b82f6' },
-  'Century Quester': { label: 'Century Quester', icon: Target, color: '#10b981' },
-  'Quest Legend': { label: 'Quest Legend', icon: Star, color: '#8b5cf6' },
-};
+import { ACHIEVEMENT_INFO } from '../constants/achievements';
 
 export default function Profile() {
   const { profile, loading, refreshProfile } = useAuth();
@@ -347,7 +341,7 @@ export default function Profile() {
           ) : (
             <div className="badges-grid">
               {achievements.map(ach => {
-                const info = ACHIEVEMENT_INFO[ach.achievementType] || { label: ach.achievementType, icon: Award, color: '#666' };
+                const info = ACHIEVEMENT_INFO[ach.achievementType] || { label: ach.achievementType, description: '', icon: Award, color: '#666' };
                 const Icon = info.icon;
                 return (
                   <div key={ach.id} className="badge-card">
@@ -355,6 +349,7 @@ export default function Profile() {
                       <Icon size={32} />
                     </div>
                     <h4>{info.label}</h4>
+                    {info.description && <p style={{fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0'}}>{info.description}</p>}
                     <span className="date">Unlocked {new Date(ach.unlockedAt).toLocaleDateString()}</span>
                   </div>
                 );

@@ -1107,3 +1107,14 @@
     justify-content: center;
   }
 }
+
+/* Mobile Touch Target Adjustments */
+@media (max-width: 640px) {
+  .quest-check-btn, .icon-action-btn {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
