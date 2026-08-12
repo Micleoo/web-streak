@@ -5,8 +5,9 @@ import { logger } from 'hono/logger';
 import { auth, isOriginAllowed } from './auth';
 import { db } from './db';
 import { quests, questCompletions, user, friends, achievements } from './db/schema';
-import { eq, desc, and, gte, ilike, or, inArray, gt, lt, isNull } from 'drizzle-orm';
+import { eq, desc, and, gte, ilike, or, inArray, gt, lt, isNull, sql, isNotNull } from 'drizzle-orm';
 import dotenv from 'dotenv';
+import { sendPushNotification } from './services/reminder.service';
 import {
   usernameParamSchema,
   onboardingSchema,
@@ -598,6 +599,13 @@ app.post('/api/quests/:id/check', requireAuth, async (c) => {
           achievementType: ach
         });
         newAchievements.push(ach);
+        
+        // Push notification for achievement
+        await sendPushNotification(session.user.id, {
+          title: '🏆 Achievement Unlocked!',
+          body: `Selamat! Kamu mendapatkan achievement: ${ach}`,
+          tag: `ach-${ach}`
+        });
       }
     }
   }
@@ -864,6 +872,40 @@ app.post('/api/friends/respond', requireAuth, async (c) => {
   return c.json({ success: true });
 });
 
+// --- NOTIFICATIONS API ---
+app.post('/api/notifications/subscribe', requireAuth, async (c) => {
+  const session = c.get('session');
+  const body = await c.req.json().catch(() => ({}));
+  
+  if (!body.subscription) {
+    return c.json({ error: 'Subscription missing' }, 400);
+  }
+
+  await db
+    .update(user)
+    .set({ 
+      pushSubscription: body.subscription,
+      notificationEnabled: true
+    })
+    .where(eq(user.id, session.user.id));
+    
+  return c.json({ success: true });
+});
+
+app.patch('/api/users/notification-enabled', requireAuth, async (c) => {
+  const session = c.get('session');
+  const body = await c.req.json().catch(() => ({}));
+  
+  await db
+    .update(user)
+    .set({ 
+      notificationEnabled: body.notificationEnabled
+    })
+    .where(eq(user.id, session.user.id));
+    
+  return c.json({ success: true });
+});
+
 // --- CRON JOBS (Secured with CRON_SECRET) ---
 app.post('/api/cron/daily', async (c) => {
   const authHeader = c.req.header('authorization');
@@ -913,6 +955,84 @@ app.post('/api/cron/daily', async (c) => {
     success: true,
     message: 'Daily reset complete',
   });
+});
+
+app.get('/api/cron/daily-reminder', async (c) => {
+  const authHeader = c.req.header('authorization');
+  const vercelCronHeader = c.req.header('x-vercel-cron');
+  const cronSecret = process.env.CRON_SECRET;
+
+  const isAuthorized = 
+    (cronSecret && authHeader === `Bearer ${cronSecret}`) ||
+    (cronSecret && vercelCronHeader === cronSecret) ||
+    (!cronSecret && process.env.NODE_ENV === 'development');
+
+  if (!isAuthorized) {
+    return c.json({ error: 'Unauthorized: Missing or invalid CRON_SECRET' }, 401);
+  }
+
+  try {
+    console.log('[daily-reminder] Starting reminder cron...');
+
+    const activeUsers = await db
+      .select()
+      .from(user)
+      .where(and(eq(user.notificationEnabled, true), isNotNull(user.pushSubscription)));
+
+    let successCount = 0;
+    
+    for (const u of activeUsers) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const allUserQuests = await db
+        .select()
+        .from(quests)
+        .where(eq(quests.userId, u.id));
+        
+      if (allUserQuests.length === 0) continue;
+      
+      const completionsToday = await db
+        .select()
+        .from(questCompletions)
+        .where(
+          and(
+            eq(questCompletions.userId, u.id),
+            gte(questCompletions.completedAt, today)
+          )
+        );
+        
+      const pendingCount = allUserQuests.length - completionsToday.length;
+      
+      if (pendingCount > 0) {
+        const messageBody = pendingCount === 1
+          ? `Ada 1 quest yang belum selesai! Selesaikan sebelum jam 23:59 untuk menjaga Bara tetap menyala 🔥`
+          : `Masih ada ${pendingCount} quest hari ini! Jangan biarkan Bara-mu padam 🔥`;
+
+        await sendPushNotification(u.id, {
+          title: 'Waktunya Quest!',
+          body: messageBody,
+          tag: 'daily-reminder',
+          data: {
+            url: '/dashboard',
+            pendingCount
+          }
+        });
+        
+        successCount++;
+        
+        await db
+          .update(user)
+          .set({ lastReminderSentAt: new Date() })
+          .where(eq(user.id, u.id));
+      }
+    }
+
+    return c.json({ success: true, sent: successCount });
+  } catch (err: any) {
+    console.error('Cron error:', err);
+    return c.json({ error: 'Internal error' }, 500);
+  }
 });
 
 app.get('/api', (c) => c.json({ status: 'ok', message: 'Streak API is running!' }));

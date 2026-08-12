@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, jsonb } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -27,6 +27,7 @@ export const user = pgTable("user", {
   
   // notifications
   notificationEnabled: boolean("notificationEnabled").default(true).notNull(),
+  pushSubscription: jsonb("pushSubscription"),
   lastReminderSentAt: timestamp("lastReminderSentAt"),
   timezone: text("timezone").default('UTC'),
 });

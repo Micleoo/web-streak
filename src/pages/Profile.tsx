@@ -2,8 +2,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import Navbar from '../components/Navbar';
 import { useNavigate } from 'react-router-dom';
-import { User, Flame, Trophy, Star, Target, Loader2, Award, Zap, AlertTriangle, Clock, ShieldCheck } from 'lucide-react';
+import { User, Flame, Trophy, Star, Target, Loader2, Award, Zap, AlertTriangle, Clock, ShieldCheck, Bell, BellOff } from 'lucide-react';
 import { getXpLevel } from '../lib/xpUtils';
+import { usePushNotification } from '../hooks/usePushNotification';
 import './Profile.css';
 
 interface Achievement {
@@ -32,6 +33,9 @@ export default function Profile() {
   const [editUsername, setEditUsername] = useState('');
   const [saving, setSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<{text: string, type: 'error' | 'success'} | null>(null);
+  
+  // Notification state
+  const { isSupported, isSubscribed, isLoading: notifLoading, enable: enableNotif, disable: disableNotif } = usePushNotification();
 
   // Grace period countdown
   const [graceCountdown, setGraceCountdown] = useState<{
@@ -210,6 +214,25 @@ export default function Profile() {
               </>
             ) : (
               <button className="btn btn-secondary" onClick={() => setIsEditing(true)}>Edit Profile</button>
+            )}
+            {isSupported && (
+              <button 
+                className={`btn ${isSubscribed ? 'btn-secondary' : 'btn-primary'}`} 
+                onClick={async () => {
+                  if (isSubscribed) {
+                    await disableNotif();
+                    showToast('Notifikasi dimatikan', 'success');
+                  } else {
+                    const success = await enableNotif();
+                    if (success) showToast('Notifikasi diaktifkan!', 'success');
+                    else showToast('Gagal mengaktifkan notifikasi', 'error');
+                  }
+                }}
+                disabled={notifLoading}
+              >
+                {isSubscribed ? <BellOff size={18} /> : <Bell size={18} />}
+                <span>{notifLoading ? 'Tunggu...' : isSubscribed ? 'Matikan Notifikasi' : 'Aktifkan Notifikasi'}</span>
+              </button>
             )}
           </div>
         </div>

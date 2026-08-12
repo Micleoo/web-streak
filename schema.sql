@@ -24,6 +24,7 @@ CREATE TABLE users (
   
   -- Notifications
   notification_enabled    BOOLEAN DEFAULT true,
+  push_subscription       JSONB,
   last_reminder_sent_at   TIMESTAMPTZ,
   timezone                TEXT DEFAULT 'UTC'
 );
