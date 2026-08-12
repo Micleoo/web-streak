@@ -33,7 +33,7 @@ __export(schema_exports, {
   user: () => user,
   verification: () => verification
 });
-import { pgTable, text, timestamp, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, jsonb } from "drizzle-orm/pg-core";
 var user = pgTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -50,9 +50,17 @@ var user = pgTable("user", {
   favoriteCategories: text("favoriteCategories"),
   // store as JSON string
   lastQuestCompletedAt: timestamp("lastQuestCompletedAt"),
-  // Gamification fields
+  // gamification fields
   streakAtRisk: boolean("streakAtRisk").default(false).notNull(),
-  gracePeriodUntil: timestamp("gracePeriodUntil")
+  gracePeriodUntil: timestamp("gracePeriodUntil"),
+  // onboarding
+  onboardingCompleted: boolean("onboardingCompleted").default(false).notNull(),
+  onboardingCompletedAt: timestamp("onboardingCompletedAt"),
+  // notifications
+  notificationEnabled: boolean("notificationEnabled").default(true).notNull(),
+  pushSubscription: jsonb("pushSubscription"),
+  lastReminderSentAt: timestamp("lastReminderSentAt"),
+  timezone: text("timezone").default("UTC")
 });
 var session = pgTable("session", {
   id: text("id").primaryKey(),
@@ -217,8 +225,54 @@ var auth = betterAuth({
 });
 
 // server/index.ts
-import { eq as eq2, desc, and as and2, gte, ilike, or, inArray, gt, lt, isNull } from "drizzle-orm";
+import { eq as eq3, desc, and as and2, gte, ilike, or, inArray, gt, lt, isNull, isNotNull } from "drizzle-orm";
 import dotenv2 from "dotenv";
+
+// server/services/reminder.service.ts
+import webpush from "web-push";
+import { eq } from "drizzle-orm";
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT) {
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT,
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+} else {
+  console.warn("VAPID keys not configured in environment. Push notifications will not work.");
+}
+async function sendPushNotification(userId, payload) {
+  try {
+    const [targetUser] = await db.select({ pushSubscription: user.pushSubscription }).from(user).where(eq(user.id, userId)).limit(1);
+    if (!targetUser || !targetUser.pushSubscription) {
+      console.warn(`[sendPushNotification] No subscription for user ${userId}`);
+      return;
+    }
+    const subscription = targetUser.pushSubscription;
+    try {
+      await webpush.sendNotification(subscription, JSON.stringify({
+        title: payload.title,
+        body: payload.body,
+        tag: payload.tag || "default",
+        url: payload.data?.url || "/dashboard"
+      }));
+    } catch (sendError) {
+      if (sendError.statusCode === 410 || sendError.statusCode === 404) {
+        console.log(`[sendPushNotification] Subscription expired for user ${userId}`);
+        await clearUserPushSubscription(userId);
+      }
+      throw sendError;
+    }
+  } catch (error) {
+    console.error(`[sendPushNotification] Error:`, error);
+  }
+}
+async function clearUserPushSubscription(userId) {
+  try {
+    await db.update(user).set({ pushSubscription: null, notificationEnabled: false }).where(eq(user.id, userId));
+  } catch (error) {
+    console.error("[clearUserPushSubscription] Error:", error);
+  }
+}
 
 // server/validators.ts
 import { z } from "zod";
@@ -331,13 +385,13 @@ function createRateLimiter(options) {
 }
 
 // server/seed.ts
-import { eq, and } from "drizzle-orm";
+import { eq as eq2, and } from "drizzle-orm";
 async function seedDatabase() {
   try {
     console.log("\u{1F331} Checking / Seeding demo and test users...");
     const demoEmail = "example@gmail.com";
     const demoPass = "password123";
-    let demoUserRecord = (await db.select().from(user).where(eq(user.email, demoEmail)))[0];
+    let demoUserRecord = (await db.select().from(user).where(eq2(user.email, demoEmail)))[0];
     if (!demoUserRecord) {
       try {
         await auth.api.signUpEmail({
@@ -347,7 +401,7 @@ async function seedDatabase() {
             name: "Demo User"
           }
         });
-        demoUserRecord = (await db.select().from(user).where(eq(user.email, demoEmail)))[0];
+        demoUserRecord = (await db.select().from(user).where(eq2(user.email, demoEmail)))[0];
       } catch (err) {
         console.log("SignUp error for demo user:", err);
       }
@@ -361,8 +415,8 @@ async function seedDatabase() {
         totalXp: 250,
         favoriteCategories: JSON.stringify(["coding", "learning", "fitness"]),
         streakAtRisk: false
-      }).where(eq(user.id, demoUserRecord.id));
-      const existingQuests = await db.select().from(quests).where(eq(quests.userId, demoUserRecord.id));
+      }).where(eq2(user.id, demoUserRecord.id));
+      const existingQuests = await db.select().from(quests).where(eq2(quests.userId, demoUserRecord.id));
       if (existingQuests.length === 0) {
         await db.insert(quests).values([
           {
@@ -388,7 +442,7 @@ async function seedDatabase() {
     }
     const testEmail = "testuser@example.com";
     const testPass = "Password123!";
-    let testUserRecord = (await db.select().from(user).where(eq(user.email, testEmail)))[0];
+    let testUserRecord = (await db.select().from(user).where(eq2(user.email, testEmail)))[0];
     if (!testUserRecord) {
       try {
         await auth.api.signUpEmail({
@@ -398,7 +452,7 @@ async function seedDatabase() {
             name: "Test User"
           }
         });
-        testUserRecord = (await db.select().from(user).where(eq(user.email, testEmail)))[0];
+        testUserRecord = (await db.select().from(user).where(eq2(user.email, testEmail)))[0];
       } catch (err) {
         console.log("SignUp error for test user:", err);
       }
@@ -412,8 +466,8 @@ async function seedDatabase() {
         totalXp: 150,
         favoriteCategories: JSON.stringify(["coding", "health"]),
         streakAtRisk: false
-      }).where(eq(user.id, testUserRecord.id));
-      const existingTestQuests = await db.select().from(quests).where(eq(quests.userId, testUserRecord.id));
+      }).where(eq2(user.id, testUserRecord.id));
+      const existingTestQuests = await db.select().from(quests).where(eq2(quests.userId, testUserRecord.id));
       if (existingTestQuests.length === 0) {
         await db.insert(quests).values([
           {
@@ -437,7 +491,7 @@ async function seedDatabase() {
       { name: "Michael SF", email: "michael@example.com", username: "michael_sf", streak: 8, xp: 520 }
     ];
     for (const sample of sampleUsers) {
-      let [rec] = await db.select().from(user).where(eq(user.email, sample.email)).limit(1);
+      let [rec] = await db.select().from(user).where(eq2(user.email, sample.email)).limit(1);
       if (!rec) {
         try {
           await auth.api.signUpEmail({
@@ -447,10 +501,10 @@ async function seedDatabase() {
               name: sample.name
             }
           });
-          const [created] = await db.select().from(user).where(eq(user.email, sample.email)).limit(1);
+          const [created] = await db.select().from(user).where(eq2(user.email, sample.email)).limit(1);
           rec = created;
         } catch (e) {
-          const [found] = await db.select().from(user).where(eq(user.email, sample.email)).limit(1);
+          const [found] = await db.select().from(user).where(eq2(user.email, sample.email)).limit(1);
           rec = found;
         }
       }
@@ -461,10 +515,10 @@ async function seedDatabase() {
           currentStreak: sample.streak,
           maxStreak: sample.streak + 5,
           totalXp: sample.xp
-        }).where(eq(user.id, rec.id));
+        }).where(eq2(user.id, rec.id));
         if (demoUserRecord && demoUserRecord.id !== rec.id) {
           const friendExists = await db.select().from(friends).where(
-            and(eq(friends.userId, demoUserRecord.id), eq(friends.friendId, rec.id))
+            and(eq2(friends.userId, demoUserRecord.id), eq2(friends.friendId, rec.id))
           );
           if (friendExists.length === 0) {
             await db.insert(friends).values({
@@ -556,7 +610,7 @@ app.post("/api/auth/sign-up/email", async (c) => {
       currentStreak: 0,
       maxStreak: 0,
       totalXp: 0
-    }).where(eq2(user.email, body.email.toLowerCase().trim())).catch(() => {
+    }).where(eq3(user.email, body.email.toLowerCase().trim())).catch(() => {
     });
     return response;
   } catch (err) {
@@ -646,7 +700,7 @@ var requireAuth = async (c, next) => {
 };
 app.get("/api/me", requireAuth, async (c) => {
   const session2 = c.get("session");
-  const [currentUser] = await db.select().from(user).where(eq2(user.id, session2.user.id)).limit(1);
+  const [currentUser] = await db.select().from(user).where(eq3(user.id, session2.user.id)).limit(1);
   if (!currentUser) {
     return c.json({ error: "User not found" }, 404);
   }
@@ -654,7 +708,7 @@ app.get("/api/me", requireAuth, async (c) => {
   if (!userObj.username) {
     const fallback = currentUser.email?.split("@")[0]?.replace(/[^a-zA-Z0-9_]/g, "") || `user_${currentUser.id.slice(0, 6)}`;
     userObj.username = fallback;
-    await db.update(user).set({ username: fallback }).where(eq2(user.id, currentUser.id)).catch(() => {
+    await db.update(user).set({ username: fallback }).where(eq3(user.id, currentUser.id)).catch(() => {
     });
   }
   return c.json(userObj);
@@ -667,7 +721,7 @@ app.put("/api/me", requireAuth, async (c) => {
     return c.json({ error: parseResult.error.issues[0]?.message || "Input tidak valid" }, 400);
   }
   const data = parseResult.data;
-  const [existingUser] = await db.select().from(user).where(eq2(user.id, session2.user.id)).limit(1);
+  const [existingUser] = await db.select().from(user).where(eq3(user.id, session2.user.id)).limit(1);
   if (!existingUser) {
     return c.json({ error: "User not found" }, 404);
   }
@@ -675,7 +729,7 @@ app.put("/api/me", requireAuth, async (c) => {
   const newUsername = data.username !== void 0 ? data.username.toLowerCase() : existingUser.username;
   if (data.username && data.username.toLowerCase() !== existingUser.username) {
     const targetUsername = data.username.toLowerCase();
-    const conflict = await db.select().from(user).where(eq2(user.username, targetUsername));
+    const conflict = await db.select().from(user).where(eq3(user.username, targetUsername));
     if (conflict.length > 0 && conflict[0].id !== session2.user.id) {
       return c.json({ error: "Username is already taken" }, 400);
     }
@@ -685,7 +739,7 @@ app.put("/api/me", requireAuth, async (c) => {
     name: newName,
     username: newUsername,
     favoriteCategories
-  }).where(eq2(user.id, session2.user.id)).returning();
+  }).where(eq3(user.id, session2.user.id)).returning();
   return c.json({
     success: true,
     ...updatedUser,
@@ -699,7 +753,7 @@ app.get("/api/check-username/:username", async (c) => {
     return c.json({ available: false, error: "Invalid format" }, 400);
   }
   const username = parseResult.data.toLowerCase();
-  const existingUser = await db.select({ id: user.id }).from(user).where(eq2(user.username, username)).limit(1);
+  const existingUser = await db.select({ id: user.id }).from(user).where(eq3(user.username, username)).limit(1);
   return c.json({ available: existingUser.length === 0 });
 });
 app.post("/api/onboarding", requireAuth, async (c) => {
@@ -714,8 +768,10 @@ app.post("/api/onboarding", requireAuth, async (c) => {
   try {
     await db.update(user).set({
       username: cleanUsername,
-      favoriteCategories: favoriteCategories ? JSON.stringify(favoriteCategories) : null
-    }).where(eq2(user.id, session2.user.id));
+      favoriteCategories: favoriteCategories ? JSON.stringify(favoriteCategories) : null,
+      onboardingCompleted: true,
+      onboardingCompletedAt: /* @__PURE__ */ new Date()
+    }).where(eq3(user.id, session2.user.id));
     return c.json({ success: true });
   } catch (e) {
     if (e?.code === "23505") {
@@ -727,12 +783,12 @@ app.post("/api/onboarding", requireAuth, async (c) => {
 });
 app.get("/api/quests", requireAuth, async (c) => {
   const session2 = c.get("session");
-  const userQuests = await db.select().from(quests).where(eq2(quests.userId, session2.user.id)).orderBy(quests.createdAt);
+  const userQuests = await db.select().from(quests).where(eq3(quests.userId, session2.user.id)).orderBy(quests.createdAt);
   const today = /* @__PURE__ */ new Date();
   today.setHours(0, 0, 0, 0);
   const completions = await db.select().from(questCompletions).where(
     and2(
-      eq2(questCompletions.userId, session2.user.id),
+      eq3(questCompletions.userId, session2.user.id),
       gte(questCompletions.completedAt, today)
     )
   );
@@ -766,7 +822,7 @@ app.post("/api/quests", requireAuth, async (c) => {
 app.delete("/api/quests/:id", requireAuth, async (c) => {
   const session2 = c.get("session");
   const id = c.req.param("id");
-  await db.delete(quests).where(and2(eq2(quests.id, id), eq2(quests.userId, session2.user.id)));
+  await db.delete(quests).where(and2(eq3(quests.id, id), eq3(quests.userId, session2.user.id)));
   return c.json({ success: true });
 });
 app.put("/api/quests/:id", requireAuth, async (c) => {
@@ -784,7 +840,7 @@ app.put("/api/quests/:id", requireAuth, async (c) => {
     name: questName,
     category: category || "coding",
     estimatedMinutes: minutes
-  }).where(and2(eq2(quests.id, id), eq2(quests.userId, session2.user.id))).returning();
+  }).where(and2(eq3(quests.id, id), eq3(quests.userId, session2.user.id))).returning();
   if (!updatedQuest) {
     return c.json({ error: "Quest not found" }, 404);
   }
@@ -802,8 +858,8 @@ app.get("/api/quests/:id/history", requireAuth, async (c) => {
     completedAt: questCompletions.completedAt
   }).from(questCompletions).where(
     and2(
-      eq2(questCompletions.questId, id),
-      eq2(questCompletions.userId, session2.user.id)
+      eq3(questCompletions.questId, id),
+      eq3(questCompletions.userId, session2.user.id)
     )
   ).orderBy(desc(questCompletions.completedAt)).limit(30);
   return c.json(history);
@@ -811,7 +867,7 @@ app.get("/api/quests/:id/history", requireAuth, async (c) => {
 app.post("/api/quests/:id/check", requireAuth, async (c) => {
   const session2 = c.get("session");
   const id = c.req.param("id");
-  const [targetQuest] = await db.select().from(quests).where(and2(eq2(quests.id, id), eq2(quests.userId, session2.user.id))).limit(1);
+  const [targetQuest] = await db.select().from(quests).where(and2(eq3(quests.id, id), eq3(quests.userId, session2.user.id))).limit(1);
   if (!targetQuest) {
     return c.json({ error: "Quest not found" }, 404);
   }
@@ -819,7 +875,7 @@ app.post("/api/quests/:id/check", requireAuth, async (c) => {
     questId: id,
     userId: session2.user.id
   });
-  const [userData] = await db.select().from(user).where(eq2(user.id, session2.user.id));
+  const [userData] = await db.select().from(user).where(eq3(user.id, session2.user.id));
   let xpGained = 10;
   let streakBonus = false;
   let gracePeriodRestored = false;
@@ -849,7 +905,7 @@ app.post("/api/quests/:id/check", requireAuth, async (c) => {
     today.setHours(0, 0, 0, 0);
     const completionsToday = await db.select().from(questCompletions).where(
       and2(
-        eq2(questCompletions.userId, session2.user.id),
+        eq3(questCompletions.userId, session2.user.id),
         gte(questCompletions.completedAt, today)
       )
     );
@@ -873,8 +929,8 @@ app.post("/api/quests/:id/check", requireAuth, async (c) => {
     streakAtRisk,
     gracePeriodUntil,
     lastQuestCompletedAt: /* @__PURE__ */ new Date()
-  }).where(eq2(user.id, session2.user.id)).returning();
-  const allUserCompletions = await db.select({ id: questCompletions.id }).from(questCompletions).where(eq2(questCompletions.userId, session2.user.id));
+  }).where(eq3(user.id, session2.user.id)).returning();
+  const allUserCompletions = await db.select({ id: questCompletions.id }).from(questCompletions).where(eq3(questCompletions.userId, session2.user.id));
   const totalCompletions = allUserCompletions.length;
   const earnedAchievements = [];
   if (newStreak >= 7) earnedAchievements.push("Week Warrior");
@@ -884,7 +940,7 @@ app.post("/api/quests/:id/check", requireAuth, async (c) => {
   if (totalCompletions >= 200) earnedAchievements.push("Quest Legend");
   const newAchievements = [];
   if (earnedAchievements.length > 0) {
-    const existingAchs = await db.select({ type: achievements.achievementType }).from(achievements).where(eq2(achievements.userId, session2.user.id));
+    const existingAchs = await db.select({ type: achievements.achievementType }).from(achievements).where(eq3(achievements.userId, session2.user.id));
     const existingTypes = new Set(existingAchs.map((a) => a.type));
     for (const ach of earnedAchievements) {
       if (!existingTypes.has(ach)) {
@@ -893,6 +949,11 @@ app.post("/api/quests/:id/check", requireAuth, async (c) => {
           achievementType: ach
         });
         newAchievements.push(ach);
+        await sendPushNotification(session2.user.id, {
+          title: "\u{1F3C6} Achievement Unlocked!",
+          body: `Selamat! Kamu mendapatkan achievement: ${ach}`,
+          tag: `ach-${ach}`
+        });
       }
     }
   }
@@ -914,7 +975,7 @@ app.post("/api/quests/:id/check", requireAuth, async (c) => {
 });
 app.get("/api/achievements", requireAuth, async (c) => {
   const session2 = c.get("session");
-  const userAchievements = await db.select().from(achievements).where(eq2(achievements.userId, session2.user.id)).orderBy(desc(achievements.unlockedAt));
+  const userAchievements = await db.select().from(achievements).where(eq3(achievements.userId, session2.user.id)).orderBy(desc(achievements.unlockedAt));
   return c.json(userAchievements);
 });
 app.get("/api/leaderboard", requireAuth, async (c) => {
@@ -923,8 +984,8 @@ app.get("/api/leaderboard", requireAuth, async (c) => {
   if (tab === "friends") {
     const userFriends = await db.select().from(friends).where(
       and2(
-        or(eq2(friends.userId, session2.user.id), eq2(friends.friendId, session2.user.id)),
-        eq2(friends.status, "accepted")
+        or(eq3(friends.userId, session2.user.id), eq3(friends.friendId, session2.user.id)),
+        eq3(friends.status, "accepted")
       )
     );
     const friendIds = userFriends.map((f) => f.userId === session2.user.id ? f.friendId : f.userId);
@@ -979,8 +1040,8 @@ app.get("/api/friends/search", requireAuth, async (c) => {
   ).limit(10);
   const myFriends = await db.select().from(friends).where(
     or(
-      eq2(friends.userId, session2.user.id),
-      eq2(friends.friendId, session2.user.id)
+      eq3(friends.userId, session2.user.id),
+      eq3(friends.friendId, session2.user.id)
     )
   );
   const excludeIds = /* @__PURE__ */ new Set();
@@ -1006,14 +1067,14 @@ app.post("/api/friends/request", requireAuth, async (c) => {
   if (friendId === session2.user.id) {
     return c.json({ error: "Cannot send friend request to yourself" }, 400);
   }
-  const [targetUser] = await db.select({ id: user.id }).from(user).where(eq2(user.id, friendId)).limit(1);
+  const [targetUser] = await db.select({ id: user.id }).from(user).where(eq3(user.id, friendId)).limit(1);
   if (!targetUser) {
     return c.json({ error: "User tidak ditemukan" }, 404);
   }
   const existing = await db.select().from(friends).where(
     or(
-      and2(eq2(friends.userId, session2.user.id), eq2(friends.friendId, friendId)),
-      and2(eq2(friends.userId, friendId), eq2(friends.friendId, session2.user.id))
+      and2(eq3(friends.userId, session2.user.id), eq3(friends.friendId, friendId)),
+      and2(eq3(friends.userId, friendId), eq3(friends.friendId, session2.user.id))
     )
   );
   if (existing.length > 0) {
@@ -1033,10 +1094,10 @@ app.get("/api/friends/requests", requireAuth, async (c) => {
     userId: user.id,
     name: user.name,
     createdAt: friends.createdAt
-  }).from(friends).innerJoin(user, eq2(user.id, friends.userId)).where(
+  }).from(friends).innerJoin(user, eq3(user.id, friends.userId)).where(
     and2(
-      eq2(friends.friendId, session2.user.id),
-      eq2(friends.status, "pending")
+      eq3(friends.friendId, session2.user.id),
+      eq3(friends.status, "pending")
     )
   );
   return c.json(incoming);
@@ -1051,22 +1112,42 @@ app.post("/api/friends/respond", requireAuth, async (c) => {
   const { requestId, action } = parseResult.data;
   const [request] = await db.select().from(friends).where(
     and2(
-      eq2(friends.id, requestId),
-      eq2(friends.friendId, session2.user.id),
-      eq2(friends.status, "pending")
+      eq3(friends.id, requestId),
+      eq3(friends.friendId, session2.user.id),
+      eq3(friends.status, "pending")
     )
   );
   if (!request) return c.json({ error: "Request not found" }, 404);
   if (action === "accept") {
-    await db.update(friends).set({ status: "accepted" }).where(eq2(friends.id, requestId));
+    await db.update(friends).set({ status: "accepted" }).where(eq3(friends.id, requestId));
     await db.insert(friends).values({
       userId: session2.user.id,
       friendId: request.userId,
       status: "accepted"
     });
   } else if (action === "reject") {
-    await db.delete(friends).where(eq2(friends.id, requestId));
+    await db.delete(friends).where(eq3(friends.id, requestId));
   }
+  return c.json({ success: true });
+});
+app.post("/api/notifications/subscribe", requireAuth, async (c) => {
+  const session2 = c.get("session");
+  const body = await c.req.json().catch(() => ({}));
+  if (!body.subscription) {
+    return c.json({ error: "Subscription missing" }, 400);
+  }
+  await db.update(user).set({
+    pushSubscription: body.subscription,
+    notificationEnabled: true
+  }).where(eq3(user.id, session2.user.id));
+  return c.json({ success: true });
+});
+app.patch("/api/users/notification-enabled", requireAuth, async (c) => {
+  const session2 = c.get("session");
+  const body = await c.req.json().catch(() => ({}));
+  await db.update(user).set({
+    notificationEnabled: body.notificationEnabled
+  }).where(eq3(user.id, session2.user.id));
   return c.json({ success: true });
 });
 app.post("/api/cron/daily", async (c) => {
@@ -1086,7 +1167,7 @@ app.post("/api/cron/daily", async (c) => {
   }).where(
     and2(
       gt(user.currentStreak, 0),
-      eq2(user.streakAtRisk, false),
+      eq3(user.streakAtRisk, false),
       or(
         isNull(user.lastQuestCompletedAt),
         lt(user.lastQuestCompletedAt, today)
@@ -1099,7 +1180,7 @@ app.post("/api/cron/daily", async (c) => {
     gracePeriodUntil: null
   }).where(
     and2(
-      eq2(user.streakAtRisk, true),
+      eq3(user.streakAtRisk, true),
       lt(user.gracePeriodUntil, /* @__PURE__ */ new Date())
     )
   );
@@ -1107,6 +1188,51 @@ app.post("/api/cron/daily", async (c) => {
     success: true,
     message: "Daily reset complete"
   });
+});
+app.get("/api/cron/daily-reminder", async (c) => {
+  const authHeader = c.req.header("authorization");
+  const vercelCronHeader = c.req.header("x-vercel-cron");
+  const cronSecret = process.env.CRON_SECRET;
+  const isAuthorized = cronSecret && authHeader === `Bearer ${cronSecret}` || cronSecret && vercelCronHeader === cronSecret || !cronSecret && process.env.NODE_ENV === "development";
+  if (!isAuthorized) {
+    return c.json({ error: "Unauthorized: Missing or invalid CRON_SECRET" }, 401);
+  }
+  try {
+    console.log("[daily-reminder] Starting reminder cron...");
+    const activeUsers = await db.select().from(user).where(and2(eq3(user.notificationEnabled, true), isNotNull(user.pushSubscription)));
+    let successCount = 0;
+    for (const u of activeUsers) {
+      const today = /* @__PURE__ */ new Date();
+      today.setHours(0, 0, 0, 0);
+      const allUserQuests = await db.select().from(quests).where(eq3(quests.userId, u.id));
+      if (allUserQuests.length === 0) continue;
+      const completionsToday = await db.select().from(questCompletions).where(
+        and2(
+          eq3(questCompletions.userId, u.id),
+          gte(questCompletions.completedAt, today)
+        )
+      );
+      const pendingCount = allUserQuests.length - completionsToday.length;
+      if (pendingCount > 0) {
+        const messageBody = pendingCount === 1 ? `Ada 1 quest yang belum selesai! Selesaikan sebelum jam 23:59 untuk menjaga Bara tetap menyala \u{1F525}` : `Masih ada ${pendingCount} quest hari ini! Jangan biarkan Bara-mu padam \u{1F525}`;
+        await sendPushNotification(u.id, {
+          title: "Waktunya Quest!",
+          body: messageBody,
+          tag: "daily-reminder",
+          data: {
+            url: "/dashboard",
+            pendingCount
+          }
+        });
+        successCount++;
+        await db.update(user).set({ lastReminderSentAt: /* @__PURE__ */ new Date() }).where(eq3(user.id, u.id));
+      }
+    }
+    return c.json({ success: true, sent: successCount });
+  } catch (err) {
+    console.error("Cron error:", err);
+    return c.json({ error: "Internal error" }, 500);
+  }
 });
 app.get("/api", (c) => c.json({ status: "ok", message: "Streak API is running!" }));
 app.get("/api/", (c) => c.json({ status: "ok", message: "Streak API is running!" }));
